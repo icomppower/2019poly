@@ -1,0 +1,8 @@
+# Terrain + imagery tiles ARE committed here: GitHub Pages is static (no backend),
+# so the campus tiles must ship with the repo. (The 1941 engine left these out.)
+
+# OS / editor cruft
+.DS_Store
+Thumbs.db
+*.log
+node_modules/
