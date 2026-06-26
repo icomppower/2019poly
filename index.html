@@ -4,142 +4,88 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>理大圍城 2019 · The Siege of PolyU</title>
-<meta name="description" content="An interactive, to-scale 3D documentary of the siege of Hong Kong Polytechnic University (11–29 November 2019), rendered on real terrain with a directed cinematic camera and bilingual narration. Neutral documentary tone." />
+<meta name="description" content="A neutral 2D documentary of the siege of Hong Kong Polytechnic University (11–29 November 2019): a self-playing satellite-map tour of the cordon, positions and escape routes, with bilingual narration." />
 <meta property="og:type" content="website" />
-<meta property="og:title" content="The Siege of PolyU, 2019: interactive 3D documentary" />
-<meta property="og:description" content="A to-scale 3D reconstruction of the November 2019 PolyU siege on real terrain. Documentary, not advocacy. Three.js, no build, no backend, no API keys." />
-<meta property="og:url" content="https://icomppower.github.io/2019poly/" />
-<meta name="twitter:card" content="summary" />
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%2306080c'/><rect width='8' height='16' fill='%23d9a441'/><rect x='8' width='8' height='16' fill='%235b7fa6'/></svg>" />
+<meta property="og:title" content="The Siege of PolyU, 2019 · interactive documentary map" />
+<meta property="og:description" content="A self-playing satellite-map tour of the November 2019 PolyU siege. Documentary, not advocacy." />
+<meta property="og:url" content="https://2019poly.vercel.app/" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%230d0d0d'/><rect width='8' height='16' fill='%23d9a441'/><rect x='8' width='8' height='16' fill='%235b7fa6'/></svg>" />
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
 <style>
   :root{
-    --jp:#d9a441; --jp-glow:#f0c068; --uk:#5b7fa6; --uk-glow:#86a9cf; --med:#b9c0c8;
-    --ink:#eee6d2; --ink-dim:#b3a98c; --paper:#06080c;
-    --panel:rgba(12,15,21,.74); --panel-edge:rgba(210,190,140,.26); --accent:#d8c08a;
-    --mono:"Consolas","SFMono-Regular",ui-monospace,monospace;
-    --cjk:"Microsoft JhengHei","PingFang TC","Noto Sans TC","Heiti TC",sans-serif;
+    --inside:#d9a441; --police:#5b7fa6; --med:#b9c0c8;
+    --bg:#0d0d0d; --ink:#e8e0d0; --ink-dim:#9b9384; --accent:#d9a441;
+    --panel:rgba(13,13,13,.82); --edge:rgba(217,192,138,.28);
+    --mono:"SFMono-Regular",Consolas,ui-monospace,monospace;
+    --cjk:"PingFang TC","Noto Sans TC","Microsoft JhengHei","Heiti TC",sans-serif;
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  @media (prefers-reduced-motion: reduce){ *{ animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; } }
-  html,body{width:100%;height:100%;overflow:hidden;background:var(--paper);color:var(--ink);font-family:var(--cjk)}
-  #scene{position:fixed;inset:0;z-index:0}
-  /* soft lower-third scrim: darkens the bottom band behind the caption so text is always legible,
-     sits BELOW the on-map labels (z2) so place/unit labels stay bright */
-  #lower-scrim{position:fixed;left:0;right:0;bottom:0;height:44%;z-index:1;pointer-events:none;
-    background:linear-gradient(to top, rgba(4,7,12,0.84) 0%, rgba(4,7,12,0.5) 36%, rgba(4,7,12,0) 100%)}
-  #labels{position:fixed;inset:0;z-index:2;pointer-events:none;overflow:hidden}
+  html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:var(--cjk)}
+  #map{position:fixed;inset:0;z-index:0;background:#0d0d0d}
+  .leaflet-container{background:#0d0d0d}
+  /* tone the satellite imagery slightly toward a calm documentary look */
+  .leaflet-tile-pane{filter:saturate(.9) brightness(.92) contrast(1.02)}
+  .leaflet-control-attribution{font-family:var(--mono);font-size:9px;background:rgba(13,13,13,.6)!important;color:#9b9384!important}
+  .leaflet-control-attribution a{color:#bcae8a!important}
 
-  /* ---------- place / terrain labels (CSS2D) ---------- */
-  .lbl{transform:translate(-50%,-50%);text-align:center;text-shadow:0 1px 4px #000,0 0 8px #000;white-space:nowrap;user-select:none;transition:opacity .45s}
-  .lbl .zh{font-family:var(--cjk);font-weight:700;letter-spacing:1px}
-  .lbl .en{font-family:var(--mono);letter-spacing:.5px;opacity:.72;font-size:.62em}
-  .lbl.region .zh{font-size:19px;color:#f2ead2}
-  .lbl.peak .zh{font-size:13px;color:#e7d6a6}
-  .lbl.peak::before{content:"▲";display:block;font-size:9px;color:#cdb877;margin-bottom:-2px}
-  .lbl.bay .zh,.lbl.town .zh{font-size:12px;color:#bfd4e8}
-  .lbl.fort .zh{font-size:12px;color:#f0b48a}
-  .lbl.linelbl .zh{font-size:12px;font-weight:700;letter-spacing:1px}
+  .panel{background:var(--panel);border:1px solid var(--edge);border-radius:10px;backdrop-filter:blur(7px);box-shadow:0 8px 30px rgba(0,0,0,.55)}
 
-  /* ---------- unit flag labels (CSS2D) ---------- */
-  .unit{transform:translate(-50%,-115%);min-width:90px;pointer-events:none;text-align:center;transition:opacity .45s}
-  .unit .name{font-family:var(--cjk);font-weight:700;font-size:12px;line-height:1.15;text-shadow:0 1px 3px #000,0 0 6px #000}
-  .unit .cmd{font-family:var(--mono);font-size:9.5px;opacity:.85;text-shadow:0 1px 2px #000}
-  .unit.jp .name{color:#f0d49a} .unit.uk .name{color:#cfe0f2} .unit.med .name{color:#e2e7ec}
+  /* ---- title (top-left) ---- */
+  #hud-tl{position:fixed;z-index:500;top:14px;left:14px;display:flex;flex-direction:column;gap:8px;align-items:flex-start;max-width:min(330px,82vw)}
+  #title{padding:9px 14px 10px}
+  #title h1{font-family:var(--cjk);font-size:19px;letter-spacing:2px;color:#f4ecd6;line-height:1}
+  #title .sub{font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--ink-dim);margin-top:4px}
+  .btn{font-family:var(--mono);font-size:9.5px;letter-spacing:.5px;color:var(--accent);background:rgba(217,192,138,.08);
+    border:1px solid var(--edge);border-radius:6px;padding:3px 9px;cursor:pointer;transition:.18s;margin-top:7px}
+  .btn:hover{background:rgba(217,192,138,.2)}
+  #lang-btn{margin-left:6px}
 
-  /* ---------- title ---------- */
-  .panel{background:var(--panel);border:1px solid var(--panel-edge);border-radius:10px;backdrop-filter:blur(7px);box-shadow:0 8px 30px rgba(0,0,0,.55)}
-  #hud-tl{position:fixed;z-index:5;top:16px;left:18px;display:flex;flex-direction:column;align-items:flex-start;gap:9px;max-width:min(330px,82vw);pointer-events:none}
-  #title{padding:9px 15px 10px;pointer-events:auto}
-  #title h1{font-family:var(--cjk);font-size:21px;letter-spacing:3px;color:#f4ecd6;line-height:1}
-  #title .sub{font-family:var(--mono);font-size:9.5px;letter-spacing:2px;color:var(--ink-dim);margin-top:4px}
-  #notes-btn,#lang-btn,#music-btn{margin-top:7px;font-family:var(--mono);font-size:9.5px;letter-spacing:.5px;color:var(--accent);
-    background:rgba(216,192,138,.08);border:1px solid var(--panel-edge);border-radius:6px;padding:3px 8px;cursor:pointer;transition:.18s}
-  #notes-btn:hover,#lang-btn:hover,#music-btn:hover{background:rgba(216,192,138,.2)}
-  #lang-btn,#music-btn{margin-left:6px}
-  #music-btn.off{opacity:.5}
-  /* ---------- credits ---------- */
-  #title .credit{margin-top:8px;font-family:var(--mono);font-size:9px;letter-spacing:.2px;color:var(--ink-dim);line-height:1.45;max-width:230px}
-  #title .credit a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(216,192,138,.45)}
-  #title .credit a:hover{color:#fff}
-  #credit{position:fixed;z-index:6;left:50%;bottom:5px;transform:translateX(-50%);max-width:94vw;text-align:center;
-    font-family:var(--mono);font-size:10px;letter-spacing:.3px;color:rgba(216,222,232,.66);text-shadow:0 1px 2px #000,0 0 5px #000;pointer-events:none}
-  #credit a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(216,192,138,.55);pointer-events:auto}
-  #credit a:hover{color:#fff}
+  /* ---- day label (top-right) ---- */
+  #day{position:fixed;z-index:500;top:14px;right:14px;padding:8px 13px;text-align:right}
+  #day .d{font-family:var(--mono);font-size:11px;letter-spacing:2px;color:var(--accent)}
+  #day .date{font-family:var(--cjk);font-weight:700;font-size:17px;color:#f4ecd6;margin-top:1px}
+  #day .en{font-family:var(--mono);font-size:9.5px;color:var(--ink-dim);letter-spacing:.5px}
+  #day .act{font-family:var(--mono);font-size:9px;color:var(--ink-dim);margin-top:4px;letter-spacing:1px}
 
-  /* ---------- tiny faction key ---------- */
-  #key{position:fixed;z-index:5;top:16px;right:18px;padding:8px 12px;font-size:11px}
-  #key .row{display:flex;align-items:center;gap:7px;margin:2px 0}
-  #key .sw{width:11px;height:11px;border-radius:3px;box-shadow:0 0 6px currentColor}
-  #key .ln{width:16px;height:0;border-top:3px solid currentColor;border-radius:2px;box-shadow:0 0 6px currentColor}
-  #key .jp{color:var(--jp)} #key .uk{color:var(--uk)} #key .med{color:var(--med)} #key .cordon{color:#86a9cf}
-  #key .jp .sw{background:var(--jp)} #key .uk .sw{background:var(--uk)} #key .med .sw{background:var(--med)}
-  #key .sep{height:1px;background:var(--panel-edge);margin:6px 0}
-  /* collapsible symbol key (native <details>, no JS) */
-  #key .syms{margin-top:5px}
-  #key .syms>summary{cursor:pointer;color:var(--accent);font-size:10px;letter-spacing:.5px;list-style:none;outline:none;opacity:.92}
-  #key .syms>summary::-webkit-details-marker{display:none}
-  #key .syms>summary::before{content:"▸ ";font-size:9px}
-  #key .syms[open]>summary::before{content:"▾ "}
-  #key .syms .row{margin:3px 0}
-  #key .syms:not([open]) > :not(summary){display:none}   /* closed details hide their rows so the legend panel never overflows (the .row display:flex above otherwise overrides the UA closed-details hiding) */
-  #key .gl{display:inline-flex;align-items:center;justify-content:center;width:14px;font-size:12px;color:var(--ink)}
-  #key .gl.mini{width:16px;height:6px;border-radius:2px;background:rgba(255,255,255,.14);overflow:hidden}
-  #key .gl.mini>i{display:block;height:100%;width:62%;background:linear-gradient(90deg,#1f3f7a,var(--uk))}
-  #key .flagsw{width:24px;height:16px;border-radius:2px;flex:0 0 auto;box-shadow:0 0 4px rgba(0,0,0,.55)}
-  #key .syms .row .en{opacity:.55}
-  /* always-visible honesty tag: present-day-imagery disclosure (survives the ≤600px breakpoint) */
-  #disclaimer{max-width:100%;font-size:9.5px;line-height:1.32;
-    color:rgba(228,234,242,0.92);text-shadow:0 1px 2px #000,0 0 4px #000,0 0 9px rgba(0,0,0,.85);pointer-events:none;letter-spacing:.2px}
+  /* ---- legend (right, under day) ---- */
+  #key{position:fixed;z-index:500;top:104px;right:14px;padding:8px 12px;font-size:11px;font-family:var(--cjk)}
+  #key .row{display:flex;align-items:center;gap:7px;margin:3px 0;white-space:nowrap}
+  #key .dot{width:11px;height:11px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 5px currentColor}
+  #key .ln{width:16px;height:0;border-top:3px dashed currentColor;flex:0 0 auto}
+  #key .en{font-family:var(--mono);font-size:9px;color:var(--ink-dim);margin-left:2px}
 
-  /* ---------- cinematic lower-third caption ---------- */
-  #caption{position:fixed;z-index:5;left:50%;bottom:78px;transform:translateX(-50%) translateY(14px);
-    width:min(760px,92vw);text-align:center;opacity:0;transition:opacity .7s,transform .7s;pointer-events:none}
-  #caption.show{opacity:1;transform:translateX(-50%) translateY(0)}
-  #caption .date{font-family:var(--mono);font-size:12px;letter-spacing:3px;color:var(--accent)}
-  #caption .ttl{font-family:var(--cjk);font-weight:700;font-size:30px;letter-spacing:2px;color:#f6efda;
-    margin:3px 0 2px;text-shadow:0 2px 16px #000,0 0 30px rgba(0,0,0,.8)}
-  #caption .ttl .en{display:block;font-family:var(--mono);font-weight:400;font-size:12px;letter-spacing:2px;color:var(--ink-dim);margin-top:3px}
-  #caption .narr{font-family:var(--cjk);font-size:14.5px;line-height:1.6;color:#f0e7d2;max-width:680px;margin:6px auto 0;
-    text-shadow:0 1px 3px #000,0 0 6px #000,0 0 14px rgba(0,0,0,.9)}
-  #caption .narr .nz{display:block}
-  #caption .narr .ne{display:block;font-family:var(--mono);font-size:11.5px;font-style:italic;color:#ded4b8;opacity:.92;margin-top:3px;letter-spacing:.3px}
-  #caption .meta{display:flex;justify-content:center;align-items:center;gap:14px;margin-top:9px;flex-wrap:wrap}
-  #caption .cmd{font-family:var(--mono);font-size:11px;color:#f0e4c4;border:1px solid var(--panel-edge);
-    background:rgba(12,15,21,.5);border-radius:20px;padding:3px 11px}
-  #caption .str{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--ink-dim)}
-  #caption .str .bar{width:90px;height:5px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden}
-  #caption .str .bar > i{display:block;height:100%}
-  #caption .str.jp .bar>i{background:linear-gradient(90deg,#7a1f1f,var(--jp))}
-  #caption .str.uk .bar>i{background:linear-gradient(90deg,#1f3f7a,var(--uk))}
-  #caption .str.jp{color:#ffb0a4} #caption .str.uk{color:#a8c6ff}
+  /* ---- lower-third caption ---- */
+  #cap{position:fixed;z-index:500;left:50%;bottom:74px;transform:translateX(-50%) translateY(12px);
+    width:min(760px,92vw);text-align:center;opacity:0;transition:opacity .6s,transform .6s;pointer-events:none}
+  #cap.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  #cap .date{font-family:var(--mono);font-size:11px;letter-spacing:3px;color:var(--accent)}
+  #cap .ttl{font-family:var(--cjk);font-weight:700;font-size:27px;letter-spacing:2px;color:#f6efda;margin:3px 0 2px;text-shadow:0 2px 16px #000,0 0 30px rgba(0,0,0,.85)}
+  #cap .ttl .en{display:block;font-family:var(--mono);font-weight:400;font-size:12px;letter-spacing:2px;color:var(--ink-dim);margin-top:3px}
+  #cap .narr{font-family:var(--cjk);font-size:14px;line-height:1.6;color:#f0e7d2;max-width:680px;margin:6px auto 0;text-shadow:0 1px 3px #000,0 0 8px rgba(0,0,0,.9)}
+  #cap .narr .nz{display:block}
+  #cap .narr .ne{display:block;font-family:var(--mono);font-size:11px;font-style:italic;color:#ded4b8;opacity:.92;margin-top:3px;letter-spacing:.3px}
+  #scrim{position:fixed;left:0;right:0;bottom:0;height:42%;z-index:400;pointer-events:none;
+    background:linear-gradient(to top,rgba(8,8,8,.85) 0%,rgba(8,8,8,.45) 40%,rgba(8,8,8,0) 100%)}
 
-  /* ---------- minimal transport controls (auto-hide) ---------- */
-  #controls{position:fixed;z-index:6;left:50%;bottom:32px;transform:translateX(-50%);
-    display:flex;align-items:center;gap:14px;width:min(760px,92vw);transition:opacity .5s}
-  #controls.hide{opacity:0}
-  #play{flex:0 0 auto;width:42px;height:42px;border-radius:50%;border:1px solid var(--panel-edge);
-    background:var(--panel);color:var(--accent);font-size:16px;cursor:pointer;backdrop-filter:blur(6px);transition:.18s}
-  #play:hover{background:rgba(216,192,138,.22)}
-  #prog{flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.12);position:relative;cursor:pointer}
-  #prog > i{display:block;height:100%;width:0;border-radius:3px;background:linear-gradient(90deg,var(--uk),var(--accent),var(--jp));transition:width .4s linear}
-  #prog .beats{position:absolute;inset:0;pointer-events:none}
-  #prog .beats b{position:absolute;top:-3px;width:2px;height:11px;background:rgba(255,255,255,.34);transform:translateX(-50%);border-radius:1px;pointer-events:auto;cursor:pointer}
-  #prog .beats b:hover{background:var(--accent);width:3px}
-  #scene-label{flex:0 0 auto;font-family:var(--mono);font-size:10px;color:var(--ink-dim);min-width:42px;text-align:right}
+  /* ---- transport ---- */
+  #ctrl{position:fixed;z-index:500;left:50%;bottom:28px;transform:translateX(-50%);display:flex;align-items:center;gap:12px;width:min(760px,92vw);transition:opacity .5s}
+  .tbtn{flex:0 0 auto;width:38px;height:38px;border-radius:50%;border:1px solid var(--edge);background:var(--panel);
+    color:var(--accent);font-size:14px;cursor:pointer;backdrop-filter:blur(6px);transition:.18s}
+  .tbtn:hover{background:rgba(217,192,138,.22)}
+  #prog{flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.12);position:relative;cursor:pointer;overflow:hidden}
+  #prog>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--police),var(--accent),var(--inside));transition:width .35s linear}
+  #scene-lbl{flex:0 0 auto;font-family:var(--mono);font-size:10px;color:var(--ink-dim);min-width:64px;text-align:right}
 
-  /* ---------- resume overlay (only while free-look) ---------- */
-  #resume{position:fixed;z-index:7;left:50%;top:24px;transform:translateX(-50%);display:none;
-    font-family:var(--cjk);font-size:13px;color:var(--ink);background:var(--panel);border:1px solid var(--accent);
-    border-radius:22px;padding:8px 18px;cursor:pointer;backdrop-filter:blur(6px);box-shadow:0 6px 22px rgba(0,0,0,.5)}
-  #resume.show{display:block}
-  #resume:hover{background:rgba(216,192,138,.2)}
+  /* ---- map labels (place names) ---- */
+  .place{font-family:var(--cjk);font-weight:700;font-size:12px;color:#f0e7d2;text-shadow:0 1px 3px #000,0 0 6px #000,0 0 12px #000;white-space:nowrap;pointer-events:none}
+  .place .en{font-family:var(--mono);font-weight:400;font-size:9px;color:#cfc6b2;opacity:.85;display:block;margin-top:-1px}
+  .unit-lbl{font-family:var(--cjk);font-weight:700;font-size:11px;color:#fff;text-shadow:0 1px 3px #000,0 0 6px #000;white-space:nowrap;pointer-events:none}
 
-  /* ---------- notes / sources ---------- */
-  #notes{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9;width:min(620px,92vw);max-height:78vh;
-    display:none;flex-direction:column;overflow:hidden}
+  /* ---- notes panel ---- */
+  #notes{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:900;width:min(620px,92vw);max-height:78vh;display:none;flex-direction:column;overflow:hidden}
   #notes.open{display:flex}
-  #notes .nhd{display:flex;justify-content:space-between;align-items:center;padding:11px 15px;
-    border-bottom:1px solid var(--panel-edge);font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--accent)}
+  #notes .nhd{display:flex;justify-content:space-between;align-items:center;padding:11px 15px;border-bottom:1px solid var(--edge);font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--accent)}
   #notes .nhd button{background:none;border:none;color:var(--ink-dim);font-size:15px;cursor:pointer}
   #notes .nbody{padding:14px 17px;overflow:auto;font-size:12.5px;line-height:1.65;color:var(--ink-dim)}
   #notes .nbody p{margin-bottom:9px}
@@ -148,109 +94,201 @@
   #notes .nbody li{position:relative;padding-left:15px;margin-bottom:7px}
   #notes .nbody li::before{content:"▸";position:absolute;left:0;color:var(--accent)}
 
-  #hint{font-family:var(--mono);font-size:10px;color:var(--ink-dim);pointer-events:none;
-    background:var(--panel);border:1px solid var(--panel-edge);border-radius:8px;padding:6px 10px;max-width:200px;line-height:1.5;transition:opacity .5s}
-  #hint.hide{opacity:0}
-  #hint b{color:var(--accent)}
-
-  #boot{position:fixed;inset:0;z-index:50;background:radial-gradient(ellipse at center,#131922,#04060a);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;transition:opacity .8s}
-  #boot.gone{opacity:0;pointer-events:none}
-  #boot .bt{font-family:var(--cjk);font-size:30px;letter-spacing:7px;color:#f4ecd6}
-  #boot .bs{font-family:var(--mono);font-size:11px;letter-spacing:3px;color:var(--accent)}
-  #boot .bar{width:240px;height:3px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden}
-  #boot .bar>i{display:block;height:100%;width:30%;background:var(--accent);animation:load 1.1s ease-in-out infinite}
-  @keyframes load{0%{margin-left:-30%}100%{margin-left:100%}}
-  #boot .msg{font-family:var(--mono);font-size:10px;color:var(--ink-dim)}
-  #err{position:fixed;inset:0;z-index:60;background:#1a0d0d;color:#ffd9d2;font-family:var(--mono);font-size:13px;padding:40px;display:none;white-space:pre-wrap;overflow:auto}
+  #foot{position:fixed;z-index:450;left:50%;bottom:4px;transform:translateX(-50%);max-width:94vw;text-align:center;
+    font-family:var(--mono);font-size:9px;letter-spacing:.2px;color:rgba(216,222,232,.5);pointer-events:none;line-height:1.4}
 
   @media (max-width:600px){
-    #title h1{font-size:17px} #caption .ttl{font-size:22px} #caption .narr{font-size:13px}
-    #key{font-size:10px;top:10px;right:10px;padding:6px 9px}
-    #caption .narr .ne{font-size:10.5px}
-    #credit{font-size:8px;bottom:3px} #title .credit{font-size:8px}
-  }
-  /* iPhone-class phones (SE 375 → Pro Max 430): shrink the top row so #title & #key never collide */
-  @media (max-width:440px){
-    #title{padding:6px 9px 7px}
-    #title h1{font-size:15px;letter-spacing:1.5px}
-    #title .sub{font-size:7px;letter-spacing:1px;margin-top:2px}
-    #notes-btn,#lang-btn{font-size:8px;margin-top:5px}
-    #title .credit{font-size:7px;margin-top:5px;max-width:165px;line-height:1.35}
-    #key{font-size:8px;top:10px;right:8px;padding:5px 6px}
-    #resume{top:112px}   /* free-look prompt drops below the title/legend row so it never overlaps them */
+    #title h1{font-size:16px} #cap .ttl{font-size:21px} #cap .narr{font-size:12.5px}
+    #day .date{font-size:15px} #key{font-size:10px;top:96px}
   }
 </style>
 </head>
 <body>
-  <div id="scene"></div>
-  <div id="lower-scrim"></div>
-  <div id="labels"></div>
+  <div id="map"></div>
+  <div id="scrim"></div>
 
   <div id="hud-tl">
     <div id="title" class="panel">
       <h1>理大圍城 2019</h1>
-      <div class="sub" lang="en">THE SIEGE OF POLYU · 2019</div>
-      <button id="notes-btn" aria-label="說明與來源 · Notes and sources">ⓘ 說明與來源 · Notes</button>
-      <button id="lang-btn" aria-label="切換旁白語言 · Toggle narration language">中／EN</button>
-      <div class="credit">紀錄重建 · illustrative documentary · engine by Keith Li (<a href="https://www.linkedin.com/in/keithlihk/" target="_blank" rel="noopener">1941 build</a>), adapted by icomppower</div>
+      <div class="sub">THE SIEGE OF POLYU · 2019</div>
+      <button id="notes-btn" class="btn">ⓘ 說明與來源 · Notes</button>
+      <button id="lang-btn" class="btn">中／EN</button>
     </div>
-    <div id="disclaimer">現今衛星影像 · 位置與路線僅作示意<br>Present-day imagery · positions &amp; routes illustrative · approximate<br>影像 Sentinel-2 cloudless 2016 © EOX IT Services GmbH · s2maps.eu (modified Copernicus Sentinel data) · 高程 SRTM courtesy USGS</div>
-    <div id="hint" class="panel"><b>節目自動播放</b><br>拖曳可自由運鏡（會暫停導覽）</div>
+  </div>
+
+  <div id="day" class="panel">
+    <div class="d" id="day-num">DAY 1</div>
+    <div class="date" id="day-date">2019年11月</div>
+    <div class="en" id="day-en">Nov 2019</div>
+    <div class="act" id="day-act">ACT 1 / 10</div>
   </div>
 
   <div id="key" class="panel">
-    <div class="row jp"><span class="sw"></span><span>校內：示威者・學生 Inside</span></div>
-    <div class="row uk"><span class="sw"></span><span>警方 Police</span></div>
-    <div class="row med"><span class="sw"></span><span>調停者 Mediators</span></div>
-    <div class="sep"></div>
-    <div class="row cordon"><span class="ln"></span><span>警方封鎖線 Police cordon</span></div>
-    <details class="syms">
-      <summary>符號 Symbols</summary>
-      <div class="row"><span class="gl">●</span><span>位置（人數示意）Position (approx. headcount)</span></div>
-      <div class="row"><span class="gl">→</span><span>移動方向 Movement</span></div>
-    </details>
+    <div class="row" style="color:var(--inside)"><span class="dot"></span><span>校內：示威者・學生<span class="en">Inside</span></span></div>
+    <div class="row" style="color:var(--police)"><span class="dot"></span><span>警方<span class="en">Police</span></span></div>
+    <div class="row" style="color:var(--med)"><span class="dot"></span><span>調停者<span class="en">Mediators</span></span></div>
+    <div class="row" style="color:var(--police)"><span class="ln"></span><span>警方封鎖線<span class="en">Cordon</span></span></div>
   </div>
 
-  <!-- cinematic lower-third caption (driven by the Director) -->
-  <div id="caption">
+  <div id="cap">
     <div class="date" id="cap-date"></div>
     <div class="ttl" id="cap-title"></div>
     <div class="narr" id="cap-narr"></div>
-    <div class="meta" id="cap-meta"></div>
   </div>
 
-  <div id="credit" lang="en">Built by Keith Li · <a href="https://www.linkedin.com/in/keithlihk/" target="_blank" rel="noopener">LinkedIn</a></div>
-
-  <!-- minimal transport (auto-hides) -->
-  <div id="controls">
-    <button id="play" title="播放 / 暫停" aria-label="播放／暫停 · Play / pause">⏸</button>
-    <div id="prog" role="progressbar" aria-label="導覽進度 · Tour progress"><i></i><div class="beats" id="prog-beats"></div></div>
-    <div id="scene-label"></div>
+  <div id="ctrl">
+    <button class="tbtn" id="prev" title="上一幕 · Previous">⏮</button>
+    <button class="tbtn" id="play" title="播放／暫停 · Play / pause">⏸</button>
+    <button class="tbtn" id="next" title="下一幕 · Next">⏭</button>
+    <div id="prog" role="progressbar" aria-label="導覽進度 · Tour progress"><i></i></div>
+    <div id="scene-lbl"></div>
   </div>
-
-  <div id="resume">▶ 繼續導覽 · Resume tour</div>
 
   <div id="notes" class="panel">
-    <div class="nhd"><span>史料說明 · NOTES &amp; SOURCES</span><button id="notes-close" aria-label="關閉 · Close">✕</button></div>
+    <div class="nhd"><span>說明與來源 · NOTES &amp; SOURCES</span><button id="notes-close">✕</button></div>
     <div id="notes-body" class="nbody"></div>
   </div>
 
-  <!-- no background music: the 1941 period soundtrack is omitted for a neutral 2019 documentary -->
+  <div id="foot">衛星影像 Satellite © Esri — Esri, Maxar, Earthstar Geographics · 示意重建 illustrative · 中立紀錄，不持立場 · documentary, no stance implied</div>
 
-  <div id="boot">
-    <div class="bt">理大圍城 2019</div>
-    <div class="bs">THE SIEGE OF POLYU · 2019</div>
-    <div class="bar"><i></i></div>
-    <div class="msg" id="boot-msg">載入真實地形中…</div>
-  </div>
-  <pre id="err"></pre>
-
-  <!-- vendored Three.js r128 (classic globals) + scenario data load first, synchronously -->
-  <script src="lib/three.min.js"></script>
-  <script src="lib/OrbitControls.js"></script>
-  <script src="lib/CSS2DRenderer.js"></script>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
+    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
   <script src="data.js"></script>
-  <!-- the engine is ES modules; this entry runs after the classic scripts above, so global THREE / BATTLE_DATA exist when it evaluates -->
-  <script type="module" src="app.js"></script>
+  <script>
+  (function(){
+    const D = window.BATTLE_DATA;
+    const COL = { jp:"#d9a441", uk:"#5b7fa6", med:"#b9c0c8" };
+    const $ = id => document.getElementById(id);
+
+    // ---- map ----
+    const CENTER = [22.3035, 114.180];
+    const map = L.map("map", {
+      center: CENTER, zoom: 17, minZoom: 15, maxZoom: 19,
+      zoomControl: false, zoomSnap: 0, attributionControl: true,
+      maxBounds: [[22.2955, 114.1695],[22.3125, 114.1905]], maxBoundsViscosity: 1.0,
+    });
+    L.control.zoom({ position: "bottomright" }).addTo(map);
+    L.tileLayer(
+      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
+      { attribution: "Tiles © Esri", maxZoom: 19, maxNativeZoom: 19, crossOrigin: true }
+    ).addTo(map);
+
+    // ---- place labels (orientation) ----
+    (D.geography.points || []).forEach(p => {
+      L.marker([p.lat, p.lng], { interactive:false, keyboard:false,
+        icon: L.divIcon({ className:"", html:`<div class="place">${p.name_zh}<span class="en">${p.name_en}</span></div>`,
+          iconSize:[120,0], iconAnchor:[60,8] }) }).addTo(map);
+    });
+
+    // ---- cordon polyline (police line[0]); shown once it forms ~17 Nov ----
+    const cordon = D.geography.lines && D.geography.lines[0];
+    let cordonLayer = null;
+    if (cordon) {
+      cordonLayer = L.polyline(cordon.path.map(c => [c[1], c[0]]),
+        { color: COL.uk, weight: 3, dashArray: "8 6", opacity: 0 }).addTo(map);
+    }
+
+    // ---- unit position sampling (linear interp over track) ----
+    function sampleTrack(track, day){
+      if (day <= track[0].d) return track[0];
+      const last = track[track.length-1];
+      if (day >= last.d) return last;
+      for (let i=0;i<track.length-1;i++){
+        const a=track[i], b=track[i+1];
+        if (day>=a.d && day<=b.d){ const t=(day-a.d)/((b.d-a.d)||1);
+          return { lng:a.lng+(b.lng-a.lng)*t, lat:a.lat+(b.lat-a.lat)*t, s:Math.round(a.s+(b.s-a.s)*t), st:a.st }; }
+      }
+      return last;
+    }
+    const clamp=(v,a,b)=>v<a?a:v>b?b:v;
+    const radiusFor = s => clamp(Math.sqrt(s)*0.9 + 4, 6, 30);
+
+    const unitLayer = L.layerGroup().addTo(map);
+    function renderUnits(day, focus){
+      unitLayer.clearLayers();
+      const F = new Set(focus||[]);
+      D.units.forEach(u => {
+        const t0=u.track[0].d, t1=u.track[u.track.length-1].d;
+        if (day < t0-0.4 || day > t1+1.2) return;            // only on-stage units
+        const s = sampleTrack(u.track, day);
+        const focused = F.has(u.id);
+        const col = COL[u.faction] || "#ccc";
+        L.circleMarker([s.lat, s.lng], {
+          radius: radiusFor(s.s), color:"#0d0d0d", weight: focused?2:1,
+          fillColor: col, fillOpacity: focused?0.9:0.45, opacity: focused?0.95:0.4,
+        }).addTo(unitLayer);
+        if (focused){
+          L.marker([s.lat, s.lng], { interactive:false, keyboard:false,
+            icon: L.divIcon({ className:"", html:`<div class="unit-lbl" style="color:${col}">${u.name_zh}</div>`,
+              iconSize:[130,0], iconAnchor:[65, radiusFor(s.s)+12] }) }).addTo(unitLayer);
+        }
+      });
+    }
+
+    // ---- captions ----
+    let lang = "both"; // both | zh | en
+    let cur = 0;
+    function renderCaption(act){
+      $("cap-date").textContent = act.dateLabel || "";
+      $("cap-title").innerHTML = act.title_zh + `<span class="en">${act.title_en||""}</span>`;
+      const nz = `<span class="nz">${act.narration_zh||""}</span>`;
+      const ne = act.narration_en ? `<span class="ne">${act.narration_en}</span>` : "";
+      $("cap-narr").innerHTML = lang==="zh" ? nz : lang==="en" ? `<span class="ne" style="font-style:normal;color:#f0e7d2">${act.narration_en||act.narration_zh}</span>` : nz+ne;
+      $("cap").classList.add("show");
+    }
+    function dayLabel(act){
+      const dnum = Math.max(1, Math.floor(act.day) - 10);   // siege day 1 = 11 Nov
+      $("day-num").textContent = "DAY " + dnum;
+      $("day-date").textContent = act.dateLabel || "";
+      const dom = clamp(Math.floor(act.day), 11, 30);
+      $("day-en").textContent = dom + " Nov 2019";
+      $("day-act").textContent = `ACT ${cur+1} / ${D.storyboard.length}`;
+    }
+
+    // ---- zoom from the act's camera distance (closer act → higher zoom) ----
+    const zoomFor = dist => clamp(18.6 - (dist||700)/650, 16.4, 18.5);
+
+    function show(i){
+      cur = (i + D.storyboard.length) % D.storyboard.length;
+      const act = D.storyboard[cur];
+      renderUnits(act.day, act.focus);
+      if (cordonLayer) cordonLayer.setStyle({ opacity: act.day >= 16.5 ? 0.85 : 0 });
+      renderCaption(act); dayLabel(act);
+      map.flyTo([act.cam.lat, act.cam.lng], zoomFor(act.cam.dist), { duration: 1.6 });
+      $("prog").firstChild.style.width = ((cur+1)/D.storyboard.length*100) + "%";
+      $("scene-lbl").textContent = `${cur+1}/${D.storyboard.length}`;
+      schedule(act);
+    }
+
+    // ---- transport / auto-advance ----
+    let playing = true, timer = null;
+    function schedule(act){
+      clearTimeout(timer);
+      if (!playing) return;
+      const hold = (act.hold || 8) * 1000;
+      timer = setTimeout(() => { if (cur+1 < D.storyboard.length) show(cur+1); else { playing=false; paintPlay(); } }, hold);
+    }
+    function paintPlay(){ $("play").textContent = playing ? "⏸" : "▶"; }
+    $("play").onclick = () => { if (cur===D.storyboard.length-1 && !playing){ playing=true; paintPlay(); show(0); return; } playing=!playing; paintPlay(); if(playing) schedule(D.storyboard[cur]); else clearTimeout(timer); };
+    $("prev").onclick = () => { show(cur-1); };
+    $("next").onclick = () => { show(cur+1); };
+    $("prog").onclick = (e) => { const r=$("prog").getBoundingClientRect(); show(Math.floor((e.clientX-r.left)/r.width*D.storyboard.length)); };
+    $("lang-btn").onclick = () => { lang = lang==="both"?"zh":lang==="zh"?"en":"both";
+      $("lang-btn").textContent = lang==="both"?"中／EN":lang==="zh"?"中文":"EN"; renderCaption(D.storyboard[cur]); };
+
+    // ---- notes / sources ----
+    const n = D.notes || { summary:"", caveats:[], sources:"" };
+    $("notes-body").innerHTML = `<p>${n.summary}</p><h5>考據與呈現 · Caveats</h5><ul>`+
+      (n.caveats||[]).map(c=>`<li>${c}</li>`).join("")+`</ul><h5>主要來源 · Sources</h5><p>${n.sources}</p>`;
+    $("notes-btn").onclick = () => $("notes").classList.toggle("open");
+    $("notes-close").onclick = () => $("notes").classList.remove("open");
+
+    // a user drag/zoom pauses the tour (so they can explore)
+    map.on("dragstart zoomstart", () => { /* keep playing but don't fight the user mid-gesture */ });
+
+    paintPlay();
+    show(0);
+  })();
+  </script>
 </body>
 </html>
