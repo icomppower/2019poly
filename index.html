@@ -40,6 +40,8 @@
     border:1px solid var(--edge);border-radius:6px;padding:3px 9px;cursor:pointer;transition:.18s;margin-top:7px}
   .btn:hover{background:rgba(217,192,138,.2)}
   #lang-btn{margin-left:6px}
+  #mute-btn.hint{animation:mutePulse 2s ease-in-out infinite}
+  @keyframes mutePulse{0%,100%{box-shadow:0 0 0 0 rgba(217,192,138,.0)}50%{box-shadow:0 0 0 4px rgba(217,192,138,.35)}}
 
   /* ---- day label (top-right) ---- */
   #day{position:fixed;z-index:500;top:14px;right:14px;padding:8px 13px;text-align:right}
@@ -416,9 +418,8 @@
     const bgm = (function(){
       const a = document.createElement('audio');
       a.src = './denis-pavlov-music-dark-despair-sad-dramatic-tragic-piano-cello-545572.mp3';
-      a.loop = true; a.preload = 'auto'; a.volume = 1; a.muted = true;
+      a.loop = true; a.preload = 'auto'; a.volume = 1;
       document.body.appendChild(a);
-      a.play().catch(() => {});
       return a;
     })();
     let audioUnlocked = false, audioMuted = false, fadeTick = null;
@@ -436,18 +437,19 @@
     function unlockAudio(){
       if (audioUnlocked) return;
       audioUnlocked = true;
-      bgm.muted = audioMuted;
+      $("mute-btn").classList.remove("hint");
       bgm.play().catch(() => {});
       paintMute();
     }
     document.addEventListener("click", (e) => { if (e.target !== $("mute-btn")) unlockAudio(); });
-    $("mute-btn").onclick = (e) => {
+    $("mute-btn").onclick = () => {
       if (!audioUnlocked){ unlockAudio(); return; }
       audioMuted = !audioMuted;
       bgm.muted = audioMuted;
       if (!audioMuted && bgm.paused) bgm.play().catch(() => {});
       paintMute();
     };
+    $("mute-btn").classList.add("hint");
     paintMute();
 
     buildLegend();
