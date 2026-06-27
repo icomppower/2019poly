@@ -49,7 +49,7 @@
   #day .act{font-family:var(--mono);font-size:9px;color:var(--ink-dim);margin-top:4px;letter-spacing:1px}
 
   /* ---- legend (right, under day) ---- */
-  #key{position:fixed;z-index:500;top:104px;right:14px;padding:8px 12px;font-size:11px;font-family:var(--cjk)}
+  #key{position:fixed;z-index:500;top:134px;right:14px;padding:8px 12px;font-size:11px;font-family:var(--cjk)}
   #key .row{display:flex;align-items:center;gap:7px;margin:3px 0;white-space:nowrap}
   #key .dot{width:11px;height:11px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 5px currentColor}
   #key .ln{width:16px;height:0;border-top:3px dashed currentColor;flex:0 0 auto}
@@ -146,7 +146,7 @@
 
   @media (max-width:600px){
     #title h1{font-size:16px} #cap .ttl{font-size:21px} #cap .narr{font-size:12.5px}
-    #day .date{font-size:15px} #key{font-size:10px;top:96px}
+    #day .date{font-size:15px} #key{font-size:10px;top:130px}
   }
 </style>
 </head>
@@ -168,6 +168,7 @@
     <div class="date" id="day-date">2019年11月</div>
     <div class="en" id="day-en">Nov 2019</div>
     <div class="act" id="day-act">ACT 1 / 10</div>
+    <button id="mute-btn" class="btn">🔇</button>
   </div>
 
   <div id="key" class="panel"></div>
@@ -380,6 +381,7 @@
       map.flyTo([act.cam.lat, act.cam.lng], zoomFor(act.cam.dist), { duration: 1.6 });
       $("prog").firstChild.style.width = ((cur+1)/D.storyboard.length*100) + "%";
       $("scene-lbl").textContent = `${cur+1}/${D.storyboard.length}`;
+      if (cur === D.storyboard.length - 1) fadeOutBgm(); else resetVolume();
       schedule(act);
     }
 
@@ -409,6 +411,44 @@
 
     // a user drag/zoom pauses the tour (so they can explore)
     map.on("dragstart zoomstart", () => { /* keep playing but don't fight the user mid-gesture */ });
+
+    // ---- audio ----
+    const bgm = (function(){
+      const a = document.createElement('audio');
+      a.src = 'https://raw.githubusercontent.com/icomppower/2019poly/main/denis-pavlov-music-dark-despair-sad-dramatic-tragic-piano-cello-545572.mp3';
+      a.loop = true; a.preload = 'auto'; a.volume = 1; a.muted = true;
+      document.body.appendChild(a);
+      a.play().catch(() => {});
+      return a;
+    })();
+    let audioUnlocked = false, audioMuted = false, fadeTick = null;
+    function paintMute(){ $("mute-btn").textContent = (!audioUnlocked || audioMuted) ? "🔇" : "🔊"; }
+    function resetVolume(){ clearInterval(fadeTick); fadeTick = null; if (bgm) bgm.volume = 1; }
+    function fadeOutBgm(){
+      resetVolume();
+      let v = 1;
+      fadeTick = setInterval(() => {
+        v = Math.max(0, v - 0.025);
+        bgm.volume = v;
+        if (v <= 0){ clearInterval(fadeTick); fadeTick = null; }
+      }, 150);
+    }
+    function unlockAudio(){
+      if (audioUnlocked) return;
+      audioUnlocked = true;
+      bgm.muted = audioMuted;
+      bgm.play().catch(() => {});
+      paintMute();
+    }
+    document.addEventListener("click", (e) => { if (e.target !== $("mute-btn")) unlockAudio(); });
+    $("mute-btn").onclick = (e) => {
+      if (!audioUnlocked){ unlockAudio(); return; }
+      audioMuted = !audioMuted;
+      bgm.muted = audioMuted;
+      if (!audioMuted && bgm.paused) bgm.play().catch(() => {});
+      paintMute();
+    };
+    paintMute();
 
     buildLegend();
     paintPlay();
