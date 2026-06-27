@@ -49,7 +49,7 @@
   #day .act{font-family:var(--mono);font-size:9px;color:var(--ink-dim);margin-top:4px;letter-spacing:1px}
 
   /* ---- legend (right, under day) ---- */
-  #key{position:fixed;z-index:500;top:104px;right:14px;padding:8px 12px;font-size:11px;font-family:var(--cjk)}
+  #key{position:fixed;z-index:500;top:134px;right:14px;padding:8px 12px;font-size:11px;font-family:var(--cjk)}
   #key .row{display:flex;align-items:center;gap:7px;margin:3px 0;white-space:nowrap}
   #key .dot{width:11px;height:11px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 5px currentColor}
   #key .ln{width:16px;height:0;border-top:3px dashed currentColor;flex:0 0 auto}
@@ -82,6 +82,53 @@
   .place .en{font-family:var(--mono);font-weight:400;font-size:9px;color:#cfc6b2;opacity:.85;display:block;margin-top:-1px}
   .unit-lbl{font-family:var(--cjk);font-weight:700;font-size:11px;color:#fff;text-shadow:0 1px 3px #000,0 0 6px #000;white-space:nowrap;pointer-events:none}
 
+  /* ---- faction character markers (DivIcon, CSS shapes — no images/flags) ---- */
+  .leaflet-div-icon{background:transparent;border:none}
+  .mk{display:flex;flex-direction:column;align-items:center;line-height:1;pointer-events:none}
+  .mk-glyph{position:relative;width:var(--sz);height:var(--sz);background:var(--c);
+    box-shadow:0 0 0 1px rgba(0,0,0,.55),0 1px 3px rgba(0,0,0,.6)}
+  .mk-circle  .mk-glyph{border-radius:50%}
+  .mk-square  .mk-glyph{border-radius:2px}
+  .mk-diamond .mk-glyph{border-radius:2px;border:1px solid #fff;transform:rotate(45deg)}
+  .mk-hollow  .mk-glyph{background:transparent;border:1.5px solid var(--c);border-radius:50%}
+  .mk-cross   .mk-glyph{border-radius:50%;border:1px solid #fff}
+  .mk-cross   .mk-glyph::after{content:"+";position:absolute;inset:-1px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:calc(var(--sz)*0.85)}
+  .mk-press   .mk-glyph{border-radius:50%}
+  .mk-press   .mk-glyph::after{content:"P";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#2c2c2c;font-family:var(--mono);font-weight:700;font-size:calc(var(--sz)*0.62)}
+  .mk-lbl{margin-top:3px;font-family:var(--mono);font-size:9px;letter-spacing:.2px;color:#f0e7d2;
+    text-shadow:0 1px 2px #000,0 0 4px #000;white-space:nowrap}
+  .mk.dim{opacity:.5}
+  .mk.focused .mk-glyph{box-shadow:0 0 0 1px rgba(0,0,0,.55),0 0 0 3px rgba(255,255,255,.55),0 1px 4px rgba(0,0,0,.7)}
+  .mk.focused .mk-lbl{font-weight:700;color:#fff}
+  /* pulse/clash rings live on a non-rotating layer so diamonds don't spin them */
+  .mk-glyph::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none}
+  .anim-pulse .mk-glyph::before{animation:mkPulse 3s ease-out infinite}
+  .anim-clash .mk-glyph::before{animation:mkClash .3s ease-out 2}
+  @keyframes mkPulse{0%{box-shadow:0 0 0 0 var(--c)}70%{box-shadow:0 0 0 11px transparent}100%{box-shadow:0 0 0 0 transparent}}
+  @keyframes mkClash{0%{box-shadow:0 0 0 0 var(--c)}100%{box-shadow:0 0 0 9px transparent}}
+  .anim-move  {animation:mkMove 2s ease-in-out}
+  @keyframes mkMove{0%{transform:translate(0,0)}100%{transform:translate(11px,-7px)}}
+  .anim-abseil{animation:mkAbseil 1.5s ease-in}
+  @keyframes mkAbseil{0%{transform:translateY(-28px);opacity:.55}100%{transform:translateY(0);opacity:1}}
+  .anim-fadein{animation:mkFadeIn 1s ease both}
+  @keyframes mkFadeIn{0%{opacity:0}100%{opacity:1}}
+  .anim-fadeout{animation:mkFadeOut 2s ease forwards}
+  @keyframes mkFadeOut{0%{opacity:1}100%{opacity:.1}}
+  .cordon-draw{animation:cordonDraw 2s ease forwards}
+  @keyframes cordonDraw{to{stroke-dashoffset:0}}
+
+  /* ---- legend glyphs ---- */
+  #key .row.off{opacity:.3}
+  #key .g{width:13px;height:13px;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
+    font-family:var(--mono);font-size:9px;font-weight:700}
+  #key .g.circle{border-radius:50%}
+  #key .g.square{border-radius:2px}
+  #key .g.diamond{border-radius:2px;border:1px solid #fff;transform:rotate(45deg)}
+  #key .g.hollow{background:transparent!important;border:1.5px solid currentColor;border-radius:50%}
+  #key .g.cross{border-radius:50%;border:1px solid #fff}
+  #key .g.cross::after{content:"+";color:#fff;font-size:11px;line-height:1}
+  #key .g.press::after{content:"P";color:#2c2c2c;font-size:8px}
+
   /* ---- notes panel ---- */
   #notes{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:900;width:min(620px,92vw);max-height:78vh;display:none;flex-direction:column;overflow:hidden}
   #notes.open{display:flex}
@@ -99,7 +146,7 @@
 
   @media (max-width:600px){
     #title h1{font-size:16px} #cap .ttl{font-size:21px} #cap .narr{font-size:12.5px}
-    #day .date{font-size:15px} #key{font-size:10px;top:96px}
+    #day .date{font-size:15px} #key{font-size:10px;top:130px}
   }
 </style>
 </head>
@@ -121,14 +168,10 @@
     <div class="date" id="day-date">2019年11月</div>
     <div class="en" id="day-en">Nov 2019</div>
     <div class="act" id="day-act">ACT 1 / 10</div>
+    <button id="mute-btn" class="btn">🔇</button>
   </div>
 
-  <div id="key" class="panel">
-    <div class="row" style="color:var(--inside)"><span class="dot"></span><span>校內：示威者・學生<span class="en">Inside</span></span></div>
-    <div class="row" style="color:var(--police)"><span class="dot"></span><span>警方<span class="en">Police</span></span></div>
-    <div class="row" style="color:var(--med)"><span class="dot"></span><span>調停者<span class="en">Mediators</span></span></div>
-    <div class="row" style="color:var(--police)"><span class="ln"></span><span>警方封鎖線<span class="en">Cordon</span></span></div>
-  </div>
+  <div id="key" class="panel"></div>
 
   <div id="cap">
     <div class="date" id="cap-date"></div>
@@ -157,7 +200,17 @@
   <script>
   (function(){
     const D = window.BATTLE_DATA;
-    const COL = { jp:"#d9a441", uk:"#5b7fa6", med:"#b9c0c8" };
+    // faction → marker style. shapes are pure CSS (no images/flags/military symbols).
+    const FAC = {
+      jp:    { css:"#d9a441", shape:"circle",  size:14, glyph:"",  zh:"示威者・學生", en:"Protesters" },
+      uk:    { css:"#5b7fa6", shape:"square",  size:16, glyph:"",  zh:"警方",        en:"Police" },
+      med:   { css:"#b9c0c8", shape:"diamond", size:14, glyph:"",  zh:"調停",        en:"Mediators" },
+      civ:   { css:"#c8c8c8", shape:"hollow",  size:14, glyph:"",  zh:"市民",        en:"Civilians" },
+      aid:   { css:"#e05555", shape:"cross",   size:14, glyph:"+", zh:"急救",        en:"First Aid" },
+      press: { css:"#e8e0d0", shape:"press",   size:14, glyph:"P", zh:"記者",        en:"Press" },
+    };
+    const FAC_ORDER = ["jp","uk","med","civ","aid","press"];
+    const COL = { jp:FAC.jp.css, uk:FAC.uk.css, med:FAC.med.css };
     const $ = id => document.getElementById(id);
 
     // ---- map ----
@@ -201,26 +254,76 @@
       return last;
     }
     const clamp=(v,a,b)=>v<a?a:v>b?b:v;
-    const radiusFor = s => clamp(Math.sqrt(s)*0.9 + 4, 6, 30);
+
+    // a unit is "on stage" from just before its track starts to a beat after it ends
+    function onStage(u, day){
+      const t0=u.track[0].d, t1=u.track[u.track.length-1].d;
+      return day >= t0-0.4 && day <= t1+1.2;
+    }
+    function unitLabel(u){ return lang==="en" ? (u.name_en||u.name_zh) : u.name_zh; }
+
+    // action-matched animation classes (see Notion page 7). Neutral: pulse/slide/
+    // fade only — no fire, explosion or muzzle-flash. Clash = pulse, not particles.
+    function animClassFor(u, anim){
+      switch(anim){
+        case "pulse":   return u.faction==="jp" ? "anim-pulse" : "";
+        case "cordon":  return u.faction==="jp" ? "anim-pulse" : "";   // inside hold as exits seal
+        case "clash":   return (u.faction==="jp"||u.faction==="uk") ? "anim-clash" : "";
+        case "move":    return u.faction==="jp" ? "anim-move" : "";
+        case "abseil":  return u.id==="escape" ? "anim-abseil" : "";
+        case "fadein":  return u.faction==="med" ? "anim-fadein" : "";
+        case "fadeout": return u.faction==="jp" ? "anim-fadeout" : "";
+        default: return "";
+      }
+    }
 
     const unitLayer = L.layerGroup().addTo(map);
-    function renderUnits(day, focus){
+    function renderUnits(act){
       unitLayer.clearLayers();
-      const F = new Set(focus||[]);
+      const day = act.day, anim = act.anim||"", F = new Set(act.focus||[]);
+      let jpIdx = 0;
       D.units.forEach(u => {
-        const t0=u.track[0].d, t1=u.track[u.track.length-1].d;
-        if (day < t0-0.4 || day > t1+1.2) return;            // only on-stage units
+        if (!onStage(u, day)) return;
         const s = sampleTrack(u.track, day);
+        const f = FAC[u.faction] || { css:"#ccc", shape:"circle", size:14 };
         const focused = F.has(u.id);
-        const col = COL[u.faction] || "#ccc";
-        L.circleMarker([s.lat, s.lng], {
-          radius: radiusFor(s.s), color:"#0d0d0d", weight: focused?2:1,
-          fillColor: col, fillOpacity: focused?0.9:0.45, opacity: focused?0.95:0.4,
-        }).addTo(unitLayer);
-        if (focused){
-          L.marker([s.lat, s.lng], { interactive:false, keyboard:false,
-            icon: L.divIcon({ className:"", html:`<div class="unit-lbl" style="color:${col}">${u.name_zh}</div>`,
-              iconSize:[130,0], iconAnchor:[65, radiusFor(s.s)+12] }) }).addTo(unitLayer);
+        const ac = animClassFor(u, anim);
+        const stateCls = focused ? "focused" : (ac==="anim-fadeout" ? "" : "dim");
+        const cls = ["mk","mk-"+f.shape, ac, stateCls].filter(Boolean).join(" ");
+        // dwindling numbers: inside markers fade out one after another
+        const delay = (ac==="anim-fadeout") ? `animation-delay:${(jpIdx*0.5).toFixed(2)}s;` : "";
+        if (u.faction==="jp") jpIdx++;
+        const html = `<div class="${cls}" style="--c:${f.css};--sz:${f.size}px;${delay}">`+
+                     `<span class="mk-glyph"></span><span class="mk-lbl">${unitLabel(u)}</span></div>`;
+        L.marker([s.lat, s.lng], { interactive:false, keyboard:false,
+          icon: L.divIcon({ className:"", html, iconSize:[90, f.size+18], iconAnchor:[45, f.size/2] }) }).addTo(unitLayer);
+      });
+    }
+
+    // ---- legend: 6 factions, greyed when not on stage in the current act ----
+    function buildLegend(){
+      $("key").innerHTML = FAC_ORDER.map(k => {
+        const f = FAC[k];
+        return `<div class="row" data-fac="${k}" style="color:${f.css}">`+
+               `<span class="g ${f.shape}" style="background:${f.shape==='hollow'?'transparent':f.css}"></span>`+
+               `<span class="lbl"></span></div>`;
+      }).join("") +
+      `<div class="row" data-fac="cordon" style="color:${FAC.uk.css}"><span class="ln"></span><span class="lbl"></span></div>`;
+    }
+    function updateLegend(act){
+      const active = new Set();
+      D.units.forEach(u => { if (onStage(u, act.day)) active.add(u.faction); });
+      const cordonOn = act.day >= 16.5;
+      $("key").querySelectorAll(".row").forEach(row => {
+        const k = row.dataset.fac;
+        const f = FAC[k];
+        const on = k==="cordon" ? cordonOn : active.has(k);
+        row.classList.toggle("off", !on);
+        const lbl = row.querySelector(".lbl");
+        if (k==="cordon"){
+          lbl.innerHTML = lang==="en" ? `<span class="en" style="margin:0">Police cordon</span>` : `警方封鎖線<span class="en">Cordon</span>`;
+        } else {
+          lbl.innerHTML = lang==="en" ? `<span class="en" style="margin:0">${f.en}</span>` : `${f.zh}<span class="en">${f.en}</span>`;
         }
       });
     }
@@ -248,15 +351,37 @@
     // ---- zoom from the act's camera distance (closer act → higher zoom) ----
     const zoomFor = dist => clamp(18.6 - (dist||700)/650, 16.4, 18.5);
 
+    // cordon visibility + one-shot "draw-in" on the act where exits are sealed
+    function setCordon(act){
+      if (!cordonLayer) return;
+      cordonLayer.setStyle({ opacity: act.day >= 16.5 ? 0.85 : 0 });
+      const path = cordonLayer._path;
+      if (!path) return;
+      if (act.anim === "cordon"){
+        const len = path.getTotalLength();
+        path.classList.remove("cordon-draw");
+        path.style.strokeDasharray = len;
+        path.style.strokeDashoffset = len;
+        void path.getBoundingClientRect();      // reflow so the draw restarts
+        path.classList.add("cordon-draw");
+      } else {
+        path.classList.remove("cordon-draw");
+        path.style.strokeDasharray = "8 6";
+        path.style.strokeDashoffset = "";
+      }
+    }
+
     function show(i){
       cur = (i + D.storyboard.length) % D.storyboard.length;
       const act = D.storyboard[cur];
-      renderUnits(act.day, act.focus);
-      if (cordonLayer) cordonLayer.setStyle({ opacity: act.day >= 16.5 ? 0.85 : 0 });
+      renderUnits(act);
+      setCordon(act);
+      updateLegend(act);
       renderCaption(act); dayLabel(act);
       map.flyTo([act.cam.lat, act.cam.lng], zoomFor(act.cam.dist), { duration: 1.6 });
       $("prog").firstChild.style.width = ((cur+1)/D.storyboard.length*100) + "%";
       $("scene-lbl").textContent = `${cur+1}/${D.storyboard.length}`;
+      if (cur === D.storyboard.length - 1) fadeOutBgm(); else resetVolume();
       schedule(act);
     }
 
@@ -274,7 +399,8 @@
     $("next").onclick = () => { show(cur+1); };
     $("prog").onclick = (e) => { const r=$("prog").getBoundingClientRect(); show(Math.floor((e.clientX-r.left)/r.width*D.storyboard.length)); };
     $("lang-btn").onclick = () => { lang = lang==="both"?"zh":lang==="zh"?"en":"both";
-      $("lang-btn").textContent = lang==="both"?"中／EN":lang==="zh"?"中文":"EN"; renderCaption(D.storyboard[cur]); };
+      $("lang-btn").textContent = lang==="both"?"中／EN":lang==="zh"?"中文":"EN";
+      const act = D.storyboard[cur]; renderCaption(act); renderUnits(act); updateLegend(act); };
 
     // ---- notes / sources ----
     const n = D.notes || { summary:"", caveats:[], sources:"" };
@@ -286,6 +412,45 @@
     // a user drag/zoom pauses the tour (so they can explore)
     map.on("dragstart zoomstart", () => { /* keep playing but don't fight the user mid-gesture */ });
 
+    // ---- audio ----
+    const bgm = (function(){
+      const a = document.createElement('audio');
+      a.src = './denis-pavlov-music-dark-despair-sad-dramatic-tragic-piano-cello-545572.mp3';
+      a.loop = true; a.preload = 'auto'; a.volume = 1; a.muted = true;
+      document.body.appendChild(a);
+      a.play().catch(() => {});
+      return a;
+    })();
+    let audioUnlocked = false, audioMuted = false, fadeTick = null;
+    function paintMute(){ $("mute-btn").textContent = (!audioUnlocked || audioMuted) ? "🔇" : "🔊"; }
+    function resetVolume(){ clearInterval(fadeTick); fadeTick = null; if (bgm) bgm.volume = 1; }
+    function fadeOutBgm(){
+      resetVolume();
+      let v = 1;
+      fadeTick = setInterval(() => {
+        v = Math.max(0, v - 0.025);
+        bgm.volume = v;
+        if (v <= 0){ clearInterval(fadeTick); fadeTick = null; }
+      }, 150);
+    }
+    function unlockAudio(){
+      if (audioUnlocked) return;
+      audioUnlocked = true;
+      bgm.muted = audioMuted;
+      bgm.play().catch(() => {});
+      paintMute();
+    }
+    document.addEventListener("click", (e) => { if (e.target !== $("mute-btn")) unlockAudio(); });
+    $("mute-btn").onclick = (e) => {
+      if (!audioUnlocked){ unlockAudio(); return; }
+      audioMuted = !audioMuted;
+      bgm.muted = audioMuted;
+      if (!audioMuted && bgm.paused) bgm.play().catch(() => {});
+      paintMute();
+    };
+    paintMute();
+
+    buildLegend();
     paintPlay();
     show(0);
   })();
