@@ -415,7 +415,7 @@
     // ---- audio ----
     const bgm = (function(){
       const a = document.createElement('audio');
-      a.src = 'https://raw.githubusercontent.com/icomppower/2019poly/main/denis-pavlov-music-dark-despair-sad-dramatic-tragic-piano-cello-545572.mp3';
+      a.src = './denis-pavlov-music-dark-despair-sad-dramatic-tragic-piano-cello-545572.mp3';
       a.loop = true; a.preload = 'auto'; a.volume = 1; a.muted = true;
       document.body.appendChild(a);
       a.play().catch(() => {});
