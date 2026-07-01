@@ -39,7 +39,7 @@ window.BATTLE_DATA = (function () {
   /* Campus box (Notion 5 · The Build). Safe band (>8% inside each edge):
    * lng [114.172, 114.193] · lat [22.2973, 22.3107] — every coord below fits.  */
   const meta = {
-    geo: { minLng:114.170, maxLng:114.195, minLat:22.296, maxLat:22.312, Z:15 },
+    geo: { minLng:114.170, maxLng:114.195, minLat:22.296, maxLat:22.312, Z:18 },
     dayMin:11, dayMax:29, year:2019, month:11, lastDay:29,
     title:"理大圍城 2019", subtitle:"The Siege of PolyU · 11–29 November 2019",
     vexag:1.5,   // near-flat urban campus — pin so the auto-derive doesn't spike tiny relief
@@ -48,7 +48,15 @@ window.BATTLE_DATA = (function () {
       grade: { filter:"none", vignette:0.12, grain:0, brightness:1.06 },
       sky:   { day:0x9fb4c8, dayB:0xc4d2de, night:0x0d1117, nightB:0x1a2230 },
     },
-    ui: { sceneLabel:false },
+  };
+
+  /* top-level UI overrides (config.js reads D.ui, not D.meta.ui):
+   *  hide the running-time chip, and replace the engine's default EOX disclaimer
+   *  with the Esri attribution this fork actually uses. */
+  const ui = {
+    sceneLabel: false,
+    disclaimer: "Present-day satellite imagery — the campus may differ from November 2019.<br>"
+      + "Imagery © Esri, Maxar, Earthstar Geographics · illustrative reconstruction, positions approximate",
   };
 
   const intro = {
@@ -322,12 +330,12 @@ window.BATTLE_DATA = (function () {
       "證據標籤 Evidence tags: 已核實 VERIFIED = 多個獨立來源佐證 · 約略 APPROX. = 廣泛報導但確切位置／時序不確定 · 有爭議 CONTESTED = 具爭議或單一來源。",
       "所有單位位置與路線僅為約略示意重建，非戰術級精確；座標為佔位值。 · All unit positions and routes are approximate illustrative reconstructions, not tactical-level precision.",
       "中立紀錄，不持立場：無國旗或派系徽章，各方以純色色塊表示，不隱含對任何一方行為的判斷。 · Neutral documentary: no flags or faction emblems; each side is a plain colour swatch; no judgment is implied on any party's conduct.",
-      "衛星影像為近年素材（EOX Sentinel-2 cloudless 2016, CC BY 4.0），地形接近平坦，3D 起伏極微。 · Present-day satellite imagery (EOX Sentinel-2 cloudless 2016, CC BY 4.0); the campus is near-flat, so 3D relief is minimal.",
+      "衛星影像為近年素材（Esri World Imagery，次米級），地形接近平坦，以平面海平面為基準，3D 起伏極微。 · Present-day satellite imagery (Esri World Imagery, sub-metre); the campus is near sea level, rendered over a flat baseline, so 3D relief is minimal.",
       "人數讀數已隱去；標記大小不代表精確兵力。 · Strength readouts are suppressed; marker size does not encode precise numbers.",
     ],
-    sources:"時序與位置綜合自路透社 Reuters、美聯社 AP、BBC、香港自由新聞 HKFP、南華早報 SCMP（2019年11月）；拘捕數字參考香港警方新聞稿與國際特赦組織報告；學術參考 Yuen, S. & Cheng, E. (2020), 'Hong Kong's Summer of Uprising'。數字與部分細節仍有爭議。 Imagery: Sentinel-2 cloudless 2016 © EOX IT Services GmbH (CC BY 4.0). Elevation: AWS Terrain Tiles / Mapzen Terrarium DEM (SRTM/USGS).",
+    sources:"時序與位置綜合自路透社 Reuters、美聯社 AP、BBC、香港自由新聞 HKFP、南華早報 SCMP（2019年11月）；拘捕數字參考香港警方新聞稿與國際特赦組織報告；學術參考 Yuen, S. & Cheng, E. (2020), 'Hong Kong's Summer of Uprising'。數字與部分細節仍有爭議。 Imagery: Esri World Imagery — © Esri, Maxar, Earthstar Geographics (educational / non-commercial use). Elevation: flat sea-level baseline (the Hung Hom campus is near sea level).",
   };
 
-  return { meta, factions, intro, outro, flagLegend, geography, units, arrows,
+  return { meta, ui, factions, intro, outro, flagLegend, geography, units, arrows,
            hotspots, weather, storyboard, notes };
 })();

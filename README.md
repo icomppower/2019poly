@@ -64,7 +64,7 @@ node tools/serve.js            # → http://localhost:5050
 
 ## Map tiles
 
-The campus box (`meta.geo` in `data.js`, zoom 15) is fetched with:
+The campus box (`meta.geo` in `data.js`, zoom 18) is fetched with:
 
 ```bash
 node tools/fetch_tiles.mjs --dry   # print the tile range + count
@@ -89,6 +89,6 @@ and publishes on push to `main`) → live at **https://icomppower.github.io/2019
 - **Content & code:** MIT ([`LICENSE`](LICENSE)) / CC BY 4.0 for the documentary content.
 - **Engine:** [`cinematic-3d-battle-engine`](https://github.com/keithligh/cinematic-3d-battle-engine) © **Keith Li** (MIT).
 - **3D library:** [Three.js](https://threejs.org/) (MIT).
-- **Imagery:** EOX Sentinel-2 cloudless 2016 (CC BY 4.0). **Elevation:** AWS Terrain Tiles / Mapzen Terrarium DEM (SRTM/USGS).
+- **Imagery:** Esri World Imagery — © Esri, Maxar, Earthstar Geographics (sub-metre; educational / non-commercial use). **Elevation:** flat sea-level baseline (the Hung Hom campus is near sea level; see `THIRD_PARTY_NOTICES.md`).
 
 See [`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md) for full third-party terms.

@@ -1,7 +1,8 @@
 name: Deploy to GitHub Pages
 
-# Builds the static site (fetching the map tiles in CI so they are NOT committed to the repo)
-# and publishes it to GitHub Pages on every push to main.
+# Publishes the static site to GitHub Pages on every push to main.
+# Map tiles are committed to lib/tiles/ (imagery + flat DEM), so CI only uploads + deploys —
+# no tile-fetch step (the imagery source is Esri, fetched locally by tools/fetch_tiles.mjs).
 
 on:
   push:
@@ -26,10 +27,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
-      - name: Fetch terrain + imagery tiles
-        shell: pwsh
-        run: ./tools/fetch_tiles.ps1
 
       - name: Setup Pages
         uses: actions/configure-pages@v5
