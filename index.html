@@ -1,461 +1,263 @@
 <!DOCTYPE html>
-<html lang="zh-Hant">
+<html lang="en">
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>理大圍城 2019 · The Siege of PolyU</title>
-<meta name="description" content="A neutral 2D documentary of the siege of Hong Kong Polytechnic University (11–29 November 2019): a self-playing satellite-map tour of the cordon, positions and escape routes, with bilingual narration." />
+<meta name="description" content="A neutral, sourced 3D documentary of the siege of Hong Kong Polytechnic University (11–29 November 2019): a self-directing tour of the occupation, police cordon and escape routes over real terrain, with bilingual narration and evidence tags." />
+<meta name="author" content="Johnny Lai" />
 <meta property="og:type" content="website" />
-<meta property="og:title" content="The Siege of PolyU, 2019 · interactive documentary map" />
-<meta property="og:description" content="A self-playing satellite-map tour of the November 2019 PolyU siege. Documentary, not advocacy." />
-<meta property="og:url" content="https://2019poly.vercel.app/" />
-<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%230d0d0d'/><rect width='8' height='16' fill='%23d9a441'/><rect x='8' width='8' height='16' fill='%235b7fa6'/></svg>" />
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-  integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="" />
+<meta property="og:title" content="理大圍城 2019 · The Siege of PolyU" />
+<meta property="og:description" content="A self-playing 3D documentary of the November 2019 siege of Hong Kong Polytechnic University, over real terrain. Documentary, not advocacy." />
+<meta property="og:url" content="https://icomppower.github.io/2019poly/" />
+<meta name="twitter:card" content="summary_large_image" />
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%2306080c'/></svg>" /><!-- the faction-coloured favicon is rebuilt from FAC by app.js at boot -->
 <style>
   :root{
-    --inside:#d9a441; --police:#5b7fa6; --med:#b9c0c8;
-    --bg:#0d0d0d; --ink:#e8e0d0; --ink-dim:#9b9384; --accent:#d9a441;
-    --panel:rgba(13,13,13,.82); --edge:rgba(217,192,138,.28);
-    --mono:"SFMono-Regular",Consolas,ui-monospace,monospace;
-    --cjk:"PingFang TC","Noto Sans TC","Microsoft JhengHei","Heiti TC",sans-serif;
+    /* --<faction>/--<faction>-glow CSS vars are set from FAC by app.js at boot (no faction colour is hard-coded here) */
+    --ink:#eee6d2; --ink-dim:#b3a98c; --paper:#06080c;
+    --panel:rgba(12,15,21,.74); --panel-edge:rgba(210,190,140,.26); --accent:#d8c08a;
+    --mono:"Consolas","SFMono-Regular",ui-monospace,monospace;
+    --font-display:"Microsoft JhengHei","PingFang TC","Noto Sans TC","Heiti TC",sans-serif;  /* pre-boot fallback; app.js sets --font-display + --mono + --text-dir from D.meta */
   }
   *{box-sizing:border-box;margin:0;padding:0}
-  html,body{width:100%;height:100%;overflow:hidden;background:var(--bg);color:var(--ink);font-family:var(--cjk)}
-  #map{position:fixed;inset:0;z-index:0;background:#0d0d0d}
-  .leaflet-container{background:#0d0d0d}
-  /* tone the satellite imagery slightly toward a calm documentary look */
-  .leaflet-tile-pane{filter:saturate(.9) brightness(.92) contrast(1.02)}
-  .leaflet-control-attribution{font-family:var(--mono);font-size:9px;background:rgba(13,13,13,.6)!important;color:#9b9384!important}
-  .leaflet-control-attribution a{color:#bcae8a!important}
+  @media (prefers-reduced-motion: reduce){ *{ animation-duration:.001ms !important; animation-iteration-count:1 !important; transition-duration:.001ms !important; } }
+  html,body{width:100%;height:100%;overflow:hidden;background:var(--paper);color:var(--ink);font-family:var(--font-display)}
+  /* reading direction: the primary-narration-script text follows --text-dir (from D.meta.dir, set by app.js); the
+     Latin/secondary text + technical labels stay LTR so mixed bilingual captions read correctly (RTL-safe). */
+  .lbl .zh,.unit .name,#title h1,#caption .ttl,#caption .narr .nz,#caption .str,#boot .bt,#notes-body,#resume{direction:var(--text-dir,ltr)}
+  .lbl .en,#title .sub,#caption .ttl .en,#caption .narr .ne,#caption .date,#caption .cmd,#scene-label{direction:ltr;unicode-bidi:isolate}
+  #scene{position:fixed;inset:0;z-index:0}
+  /* soft lower-third scrim: darkens the bottom band behind the caption so text is always legible,
+     sits BELOW the on-map labels (z2) so place/unit labels stay bright */
+  #lower-scrim{position:fixed;left:0;right:0;bottom:0;height:44%;z-index:1;pointer-events:none;
+    background:linear-gradient(to top, rgba(4,7,12,0.84) 0%, rgba(4,7,12,0.5) 36%, rgba(4,7,12,0) 100%)}
+  #labels{position:fixed;inset:0;z-index:2;pointer-events:none;overflow:hidden}
 
-  .panel{background:var(--panel);border:1px solid var(--edge);border-radius:10px;backdrop-filter:blur(7px);box-shadow:0 8px 30px rgba(0,0,0,.55)}
+  /* ---------- place / terrain labels (CSS2D) ---------- */
+  .lbl{transform:translate(-50%,-50%);text-align:center;text-shadow:0 1px 4px #000,0 0 8px #000;white-space:nowrap;user-select:none;transition:opacity .45s}
+  .lbl .zh{font-family:var(--font-display);font-weight:700;letter-spacing:1px}
+  .lbl .en{font-family:var(--mono);letter-spacing:.5px;opacity:.72;font-size:.62em}
+  .lbl.region .zh{font-size:19px;color:#f2ead2}
+  .lbl.peak .zh{font-size:13px;color:#e7d6a6}
+  .lbl.peak::before{content:"▲";display:block;font-size:9px;color:#cdb877;margin-bottom:-2px}
+  .lbl.bay .zh,.lbl.town .zh{font-size:12px;color:#bfd4e8}
+  .lbl.fort .zh{font-size:12px;color:#f0b48a}
+  .lbl.linelbl .zh{font-size:12px;font-weight:700;letter-spacing:1px}
 
-  /* ---- title (top-left) ---- */
-  #hud-tl{position:fixed;z-index:500;top:14px;left:14px;display:flex;flex-direction:column;gap:8px;align-items:flex-start;max-width:min(330px,82vw)}
-  #title{padding:9px 14px 10px}
-  #title h1{font-family:var(--cjk);font-size:19px;letter-spacing:2px;color:#f4ecd6;line-height:1}
-  #title .sub{font-family:var(--mono);font-size:9px;letter-spacing:2px;color:var(--ink-dim);margin-top:4px}
-  .btn{font-family:var(--mono);font-size:9.5px;letter-spacing:.5px;color:var(--accent);background:rgba(217,192,138,.08);
-    border:1px solid var(--edge);border-radius:6px;padding:3px 9px;cursor:pointer;transition:.18s;margin-top:7px}
-  .btn:hover{background:rgba(217,192,138,.2)}
-  #lang-btn{margin-left:6px}
-  #mute-btn.hint{animation:mutePulse 2s ease-in-out infinite}
-  @keyframes mutePulse{0%,100%{box-shadow:0 0 0 0 rgba(217,192,138,.0)}50%{box-shadow:0 0 0 4px rgba(217,192,138,.35)}}
+  /* ---------- unit flag labels (CSS2D) ---------- */
+  .unit{transform:translate(-50%,-115%);min-width:90px;pointer-events:none;text-align:center;transition:opacity .45s}
+  .unit .name{font-family:var(--font-display);font-weight:700;font-size:12px;line-height:1.15;text-shadow:0 1px 3px #000,0 0 6px #000}
+  .unit .cmd{font-family:var(--mono);font-size:9.5px;opacity:.85;text-shadow:0 1px 2px #000}
+  /* per-faction .unit.<key> .name colours are injected from FAC by app.js */
 
-  /* ---- day label (top-right) ---- */
-  #day{position:fixed;z-index:500;top:14px;right:14px;padding:8px 13px;text-align:right}
-  #day .d{font-family:var(--mono);font-size:11px;letter-spacing:2px;color:var(--accent)}
-  #day .date{font-family:var(--cjk);font-weight:700;font-size:17px;color:#f4ecd6;margin-top:1px}
-  #day .en{font-family:var(--mono);font-size:9.5px;color:var(--ink-dim);letter-spacing:.5px}
-  #day .act{font-family:var(--mono);font-size:9px;color:var(--ink-dim);margin-top:4px;letter-spacing:1px}
+  /* ---------- title ---------- */
+  .panel{background:var(--panel);border:1px solid var(--panel-edge);border-radius:10px;backdrop-filter:blur(7px);box-shadow:0 8px 30px rgba(0,0,0,.55)}
+  #hud-tl{position:fixed;z-index:5;top:16px;left:18px;display:flex;flex-direction:column;align-items:flex-start;gap:9px;max-width:min(330px,82vw);pointer-events:none}
+  #title{padding:9px 15px 10px;pointer-events:auto}
+  #title h1{font-family:var(--font-display);font-size:21px;letter-spacing:3px;color:#f4ecd6;line-height:1}
+  #title .sub{font-family:var(--mono);font-size:9.5px;letter-spacing:2px;color:var(--ink-dim);margin-top:4px}
+  #notes-btn,#lang-btn,#music-btn{margin-top:7px;font-family:var(--mono);font-size:9.5px;letter-spacing:.5px;color:var(--accent);
+    background:rgba(216,192,138,.08);border:1px solid var(--panel-edge);border-radius:6px;padding:3px 8px;cursor:pointer;transition:.18s}
+  #notes-btn:hover,#lang-btn:hover,#music-btn:hover{background:rgba(216,192,138,.2)}
+  #lang-btn,#music-btn{margin-left:6px}
+  #music-btn.off{opacity:.5}
+  /* ---------- credits (duo: engine + author; the footer #credit and the upper-left #title .credit) ---------- */
+  #title .credit{margin-top:8px;font-family:var(--mono);font-size:9px;letter-spacing:.2px;color:var(--ink-dim);line-height:1.45;max-width:230px}
+  #title .credit a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(216,192,138,.45);pointer-events:auto}
+  #title .credit a:hover{color:#fff}
+  #credit{position:fixed;z-index:6;left:50%;bottom:18px;transform:translateX(-50%);max-width:94vw;text-align:center;line-height:1.5;
+    font-family:var(--mono);font-size:10px;letter-spacing:.3px;color:rgba(216,222,232,.66);text-shadow:0 1px 2px #000,0 0 5px #000;pointer-events:none}
+  #credit a{color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(216,192,138,.55);pointer-events:auto}
+  #credit a:hover{color:#fff}
 
-  /* ---- legend (right, under day) ---- */
-  #key{position:fixed;z-index:500;top:134px;right:14px;padding:8px 12px;font-size:11px;font-family:var(--cjk)}
-  #key .row{display:flex;align-items:center;gap:7px;margin:3px 0;white-space:nowrap}
-  #key .dot{width:11px;height:11px;border-radius:50%;flex:0 0 auto;box-shadow:0 0 5px currentColor}
-  #key .ln{width:16px;height:0;border-top:3px dashed currentColor;flex:0 0 auto}
-  #key .en{font-family:var(--mono);font-size:9px;color:var(--ink-dim);margin-left:2px}
+  /* ---------- tiny faction key ---------- */
+  #key{position:fixed;z-index:5;top:16px;right:18px;padding:8px 12px;font-size:11px}
+  #key .row{display:flex;align-items:center;gap:7px;margin:2px 0}
+  #key .sw{width:11px;height:11px;border-radius:3px;box-shadow:0 0 6px currentColor}
+  #key .ln{width:16px;height:0;border-top:3px solid currentColor;border-radius:2px;box-shadow:0 0 6px currentColor}
+  #key .front{color:#ffb24a}   /* the generic front-line legend colour; per-battle line colours come inline from D.geography.lines[].color; faction swatches from FAC */
+  #key .sep{height:1px;background:var(--panel-edge);margin:6px 0}
+  /* collapsible symbol key (native <details>, no JS) */
+  #key .syms{margin-top:5px}
+  #key .syms>summary{cursor:pointer;color:var(--accent);font-size:10px;letter-spacing:.5px;list-style:none;outline:none;opacity:.92}
+  #key .syms>summary::-webkit-details-marker{display:none}
+  #key .syms>summary::before{content:"▸ ";font-size:9px}
+  #key .syms[open]>summary::before{content:"▾ "}
+  #key .syms .row{margin:3px 0}
+  #key .syms:not([open]) > :not(summary){display:none}   /* closed details hide their rows so the legend panel never overflows (the .row display:flex above otherwise overrides the UA closed-details hiding) */
+  #key .gl{display:inline-flex;align-items:center;justify-content:center;width:14px;font-size:12px;color:var(--ink)}
+  #key .gl.mini{width:16px;height:6px;border-radius:2px;background:rgba(255,255,255,.14);overflow:hidden}
+  #key .gl.mini>i{display:block;height:100%;width:62%}   /* the strength-glyph gradient is injected from FAC (defender) */
+  #key .flagsw{width:24px;height:16px;border-radius:2px;flex:0 0 auto;box-shadow:0 0 4px rgba(0,0,0,.55)}
+  #key .syms .row .en{opacity:.55}
+  /* always-visible honesty tag: present-day-imagery disclosure (survives the ≤600px breakpoint) */
+  #disclaimer{max-width:100%;font-size:9.5px;line-height:1.32;
+    color:rgba(228,234,242,0.92);text-shadow:0 1px 2px #000,0 0 4px #000,0 0 9px rgba(0,0,0,.85);pointer-events:none;letter-spacing:.2px}
 
-  /* ---- lower-third caption ---- */
-  #cap{position:fixed;z-index:500;left:50%;bottom:74px;transform:translateX(-50%) translateY(12px);
-    width:min(760px,92vw);text-align:center;opacity:0;transition:opacity .6s,transform .6s;pointer-events:none}
-  #cap.show{opacity:1;transform:translateX(-50%) translateY(0)}
-  #cap .date{font-family:var(--mono);font-size:11px;letter-spacing:3px;color:var(--accent)}
-  #cap .ttl{font-family:var(--cjk);font-weight:700;font-size:27px;letter-spacing:2px;color:#f6efda;margin:3px 0 2px;text-shadow:0 2px 16px #000,0 0 30px rgba(0,0,0,.85)}
-  #cap .ttl .en{display:block;font-family:var(--mono);font-weight:400;font-size:12px;letter-spacing:2px;color:var(--ink-dim);margin-top:3px}
-  #cap .narr{font-family:var(--cjk);font-size:14px;line-height:1.6;color:#f0e7d2;max-width:680px;margin:6px auto 0;text-shadow:0 1px 3px #000,0 0 8px rgba(0,0,0,.9)}
-  #cap .narr .nz{display:block}
-  #cap .narr .ne{display:block;font-family:var(--mono);font-size:11px;font-style:italic;color:#ded4b8;opacity:.92;margin-top:3px;letter-spacing:.3px}
-  #scrim{position:fixed;left:0;right:0;bottom:0;height:42%;z-index:400;pointer-events:none;
-    background:linear-gradient(to top,rgba(8,8,8,.85) 0%,rgba(8,8,8,.45) 40%,rgba(8,8,8,0) 100%)}
+  /* ---------- cinematic lower-third caption ---------- */
+  #caption{position:fixed;z-index:5;left:50%;bottom:78px;transform:translateX(-50%) translateY(14px);
+    width:min(760px,92vw);text-align:center;opacity:0;transition:opacity .7s,transform .7s;pointer-events:none}
+  #caption.show{opacity:1;transform:translateX(-50%) translateY(0)}
+  #caption .date{font-family:var(--mono);font-size:12px;letter-spacing:3px;color:var(--accent)}
+  #caption .ttl{font-family:var(--font-display);font-weight:700;font-size:30px;letter-spacing:2px;color:#f6efda;
+    margin:3px 0 2px;text-shadow:0 2px 16px #000,0 0 30px rgba(0,0,0,.8)}
+  #caption .ttl .en{display:block;font-family:var(--mono);font-weight:400;font-size:12px;letter-spacing:2px;color:var(--ink-dim);margin-top:3px}
+  #caption .narr{font-family:var(--font-display);font-size:14.5px;line-height:1.6;color:#f0e7d2;max-width:680px;margin:6px auto 0;
+    text-shadow:0 1px 3px #000,0 0 6px #000,0 0 14px rgba(0,0,0,.9)}
+  #caption .narr .nz{display:block}
+  #caption .narr .ne{display:block;font-family:var(--mono);font-size:11.5px;font-style:italic;color:#ded4b8;opacity:.92;margin-top:3px;letter-spacing:.3px}
+  #caption .meta{display:flex;justify-content:center;align-items:center;gap:14px;margin-top:9px;flex-wrap:wrap}
+  #caption .cmd{font-family:var(--mono);font-size:11px;color:#f0e4c4;border:1px solid var(--panel-edge);
+    background:rgba(12,15,21,.5);border-radius:20px;padding:3px 11px}
+  #caption .str{display:flex;align-items:center;gap:6px;font-family:var(--mono);font-size:10px;color:var(--ink-dim)}
+  #caption .str .bar{width:90px;height:5px;border-radius:3px;background:rgba(255,255,255,.12);overflow:hidden}
+  #caption .str .bar > i{display:block;height:100%}
+  /* per-faction .str.<key> strength-bar gradients + text colours are injected from FAC by app.js */
 
-  /* ---- transport ---- */
-  #ctrl{position:fixed;z-index:500;left:50%;bottom:28px;transform:translateX(-50%);display:flex;align-items:center;gap:12px;width:min(760px,92vw);transition:opacity .5s}
-  .tbtn{flex:0 0 auto;width:38px;height:38px;border-radius:50%;border:1px solid var(--edge);background:var(--panel);
-    color:var(--accent);font-size:14px;cursor:pointer;backdrop-filter:blur(6px);transition:.18s}
-  .tbtn:hover{background:rgba(217,192,138,.22)}
-  #prog{flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.12);position:relative;cursor:pointer;overflow:hidden}
-  #prog>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--police),var(--accent),var(--inside));transition:width .35s linear}
-  #scene-lbl{flex:0 0 auto;font-family:var(--mono);font-size:10px;color:var(--ink-dim);min-width:64px;text-align:right}
+  /* ---------- minimal transport controls (auto-hide) ---------- */
+  #controls{position:fixed;z-index:6;left:50%;bottom:32px;transform:translateX(-50%);
+    display:flex;align-items:center;gap:14px;width:min(760px,92vw);transition:opacity .5s}
+  #controls.hide{opacity:0}
+  #play{flex:0 0 auto;width:42px;height:42px;border-radius:50%;border:1px solid var(--panel-edge);
+    background:var(--panel);color:var(--accent);font-size:16px;cursor:pointer;backdrop-filter:blur(6px);transition:.18s}
+  #play:hover{background:rgba(216,192,138,.22)}
+  #prog{flex:1;height:5px;border-radius:3px;background:rgba(255,255,255,.12);position:relative;cursor:pointer}
+  #prog > i{display:block;height:100%;width:0;border-radius:3px;transition:width .4s linear}   /* the faction progress gradient is injected from FAC */
+  #prog .beats{position:absolute;inset:0;pointer-events:none}
+  #prog .beats b{position:absolute;top:-3px;width:2px;height:11px;background:rgba(255,255,255,.34);transform:translateX(-50%);border-radius:1px;pointer-events:auto;cursor:pointer}
+  #prog .beats b:hover{background:var(--accent);width:3px}
+  #scene-label{flex:0 0 auto;font-family:var(--mono);font-size:10px;color:var(--ink-dim);min-width:42px;text-align:right}
 
-  /* ---- map labels (place names) ---- */
-  .place{font-family:var(--cjk);font-weight:700;font-size:12px;color:#f0e7d2;text-shadow:0 1px 3px #000,0 0 6px #000,0 0 12px #000;white-space:nowrap;pointer-events:none}
-  .place .en{font-family:var(--mono);font-weight:400;font-size:9px;color:#cfc6b2;opacity:.85;display:block;margin-top:-1px}
-  .unit-lbl{font-family:var(--cjk);font-weight:700;font-size:11px;color:#fff;text-shadow:0 1px 3px #000,0 0 6px #000;white-space:nowrap;pointer-events:none}
+  /* ---------- resume overlay (only while free-look) ---------- */
+  #resume{position:fixed;z-index:7;left:50%;top:24px;transform:translateX(-50%);display:none;
+    font-family:var(--font-display);font-size:13px;color:var(--ink);background:var(--panel);border:1px solid var(--accent);
+    border-radius:22px;padding:8px 18px;cursor:pointer;backdrop-filter:blur(6px);box-shadow:0 6px 22px rgba(0,0,0,.5)}
+  #resume.show{display:block}
+  #resume:hover{background:rgba(216,192,138,.2)}
 
-  /* ---- faction character markers (DivIcon, CSS shapes — no images/flags) ---- */
-  .leaflet-div-icon{background:transparent;border:none}
-  .mk{display:flex;flex-direction:column;align-items:center;line-height:1;pointer-events:none}
-  .mk-glyph{position:relative;width:var(--sz);height:var(--sz);background:var(--c);
-    box-shadow:0 0 0 1px rgba(0,0,0,.55),0 1px 3px rgba(0,0,0,.6)}
-  .mk-circle  .mk-glyph{border-radius:50%}
-  .mk-square  .mk-glyph{border-radius:2px}
-  .mk-diamond .mk-glyph{border-radius:2px;border:1px solid #fff;transform:rotate(45deg)}
-  .mk-hollow  .mk-glyph{background:transparent;border:1.5px solid var(--c);border-radius:50%}
-  .mk-cross   .mk-glyph{border-radius:50%;border:1px solid #fff}
-  .mk-cross   .mk-glyph::after{content:"+";position:absolute;inset:-1px;display:flex;align-items:center;justify-content:center;color:#fff;font-weight:700;font-size:calc(var(--sz)*0.85)}
-  .mk-press   .mk-glyph{border-radius:50%}
-  .mk-press   .mk-glyph::after{content:"P";position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:#2c2c2c;font-family:var(--mono);font-weight:700;font-size:calc(var(--sz)*0.62)}
-  .mk-lbl{margin-top:3px;font-family:var(--mono);font-size:9px;letter-spacing:.2px;color:#f0e7d2;
-    text-shadow:0 1px 2px #000,0 0 4px #000;white-space:nowrap}
-  .mk.dim{opacity:.5}
-  .mk.focused .mk-glyph{box-shadow:0 0 0 1px rgba(0,0,0,.55),0 0 0 3px rgba(255,255,255,.55),0 1px 4px rgba(0,0,0,.7)}
-  .mk.focused .mk-lbl{font-weight:700;color:#fff}
-  /* pulse/clash rings live on a non-rotating layer so diamonds don't spin them */
-  .mk-glyph::before{content:"";position:absolute;inset:0;border-radius:inherit;pointer-events:none}
-  .anim-pulse .mk-glyph::before{animation:mkPulse 3s ease-out infinite}
-  .anim-clash .mk-glyph::before{animation:mkClash .3s ease-out 2}
-  @keyframes mkPulse{0%{box-shadow:0 0 0 0 var(--c)}70%{box-shadow:0 0 0 11px transparent}100%{box-shadow:0 0 0 0 transparent}}
-  @keyframes mkClash{0%{box-shadow:0 0 0 0 var(--c)}100%{box-shadow:0 0 0 9px transparent}}
-  .anim-move  {animation:mkMove 2s ease-in-out}
-  @keyframes mkMove{0%{transform:translate(0,0)}100%{transform:translate(11px,-7px)}}
-  .anim-abseil{animation:mkAbseil 1.5s ease-in}
-  @keyframes mkAbseil{0%{transform:translateY(-28px);opacity:.55}100%{transform:translateY(0);opacity:1}}
-  .anim-fadein{animation:mkFadeIn 1s ease both}
-  @keyframes mkFadeIn{0%{opacity:0}100%{opacity:1}}
-  .anim-fadeout{animation:mkFadeOut 2s ease forwards}
-  @keyframes mkFadeOut{0%{opacity:1}100%{opacity:.1}}
-  .cordon-draw{animation:cordonDraw 2s ease forwards}
-  @keyframes cordonDraw{to{stroke-dashoffset:0}}
-
-  /* ---- legend glyphs ---- */
-  #key .row.off{opacity:.3}
-  #key .g{width:13px;height:13px;flex:0 0 auto;display:inline-flex;align-items:center;justify-content:center;
-    font-family:var(--mono);font-size:9px;font-weight:700}
-  #key .g.circle{border-radius:50%}
-  #key .g.square{border-radius:2px}
-  #key .g.diamond{border-radius:2px;border:1px solid #fff;transform:rotate(45deg)}
-  #key .g.hollow{background:transparent!important;border:1.5px solid currentColor;border-radius:50%}
-  #key .g.cross{border-radius:50%;border:1px solid #fff}
-  #key .g.cross::after{content:"+";color:#fff;font-size:11px;line-height:1}
-  #key .g.press::after{content:"P";color:#2c2c2c;font-size:8px}
-
-  /* ---- notes panel ---- */
-  #notes{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:900;width:min(620px,92vw);max-height:78vh;display:none;flex-direction:column;overflow:hidden}
+  /* ---------- notes / sources ---------- */
+  #notes{position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);z-index:9;width:min(620px,92vw);max-height:78vh;
+    display:none;flex-direction:column;overflow:hidden}
   #notes.open{display:flex}
-  #notes .nhd{display:flex;justify-content:space-between;align-items:center;padding:11px 15px;border-bottom:1px solid var(--edge);font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--accent)}
+  #notes .nhd{display:flex;justify-content:space-between;align-items:center;padding:11px 15px;
+    border-bottom:1px solid var(--panel-edge);font-family:var(--mono);font-size:11px;letter-spacing:1.5px;color:var(--accent)}
   #notes .nhd button{background:none;border:none;color:var(--ink-dim);font-size:15px;cursor:pointer}
   #notes .nbody{padding:14px 17px;overflow:auto;font-size:12.5px;line-height:1.65;color:var(--ink-dim)}
   #notes .nbody p{margin-bottom:9px}
-  #notes .nbody h5{font-family:var(--cjk);font-size:13px;color:var(--accent);margin:13px 0 6px}
+  #notes .nbody h5{font-family:var(--font-display);font-size:13px;color:var(--accent);margin:13px 0 6px}
   #notes .nbody ul{margin:0 0 6px 2px;list-style:none}
-  #notes .nbody li{position:relative;padding-left:15px;margin-bottom:7px}
-  #notes .nbody li::before{content:"▸";position:absolute;left:0;color:var(--accent)}
+  #notes .nbody li{position:relative;padding-inline-start:15px;margin-bottom:7px}                 /* logical: bullet sits on the reading-start side (left LTR, right RTL) */
+  #notes .nbody li::before{content:"▸";position:absolute;inset-inline-start:0;color:var(--accent)}
+  [data-text-dir="rtl"] #notes .nbody li::before{content:"◂"}   /* RTL: the marker points the reading direction (left) */
+  [data-text-dir="rtl"] #caption .cmd{direction:rtl;unicode-bidi:isolate}   /* RTL: commander chips flow with the text (a Latin rank still isolates) */
 
-  #foot{position:fixed;z-index:450;left:50%;bottom:4px;transform:translateX(-50%);max-width:94vw;text-align:center;
-    font-family:var(--mono);font-size:9px;letter-spacing:.2px;color:rgba(216,222,232,.5);pointer-events:none;line-height:1.4}
+  #hint{font-family:var(--mono);font-size:10px;color:var(--ink-dim);pointer-events:none;
+    background:var(--panel);border:1px solid var(--panel-edge);border-radius:8px;padding:6px 10px;max-width:200px;line-height:1.5;transition:opacity .5s}
+  #hint.hide{opacity:0}
+  #hint b{color:var(--accent)}
+
+  #boot{position:fixed;inset:0;z-index:50;background:radial-gradient(ellipse at center,#131922,#04060a);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:16px;transition:opacity .8s}
+  #boot.gone{opacity:0;pointer-events:none}
+  #boot .bt{font-family:var(--font-display);font-size:30px;letter-spacing:7px;color:#f4ecd6}
+  #boot .bs{font-family:var(--mono);font-size:11px;letter-spacing:3px;color:var(--accent)}
+  #boot .bar{width:240px;height:3px;background:rgba(255,255,255,.1);border-radius:2px;overflow:hidden}
+  #boot .bar>i{display:block;height:100%;width:30%;background:var(--accent);animation:load 1.1s ease-in-out infinite}
+  @keyframes load{0%{margin-left:-30%}100%{margin-left:100%}}
+  #boot .msg{font-family:var(--mono);font-size:10px;color:var(--ink-dim)}
+  #err{position:fixed;inset:0;z-index:60;background:#1a0d0d;color:#ffd9d2;font-family:var(--mono);font-size:13px;padding:40px;display:none;white-space:pre-wrap;overflow:auto}
 
   @media (max-width:600px){
-    #title h1{font-size:16px} #cap .ttl{font-size:21px} #cap .narr{font-size:12.5px}
-    #day .date{font-size:15px} #key{font-size:10px;top:130px}
+    #title h1{font-size:17px} #caption .ttl{font-size:22px} #caption .narr{font-size:13px}
+    #hud-tl{max-width:54vw} #key{max-width:46vw;font-size:10px;top:10px;right:10px;padding:6px 9px}
+    #caption .narr .ne{font-size:10.5px}
+    #credit{font-size:8px;bottom:12px} #title .credit{font-size:8px}
   }
+  /* iPhone-class phones (SE 375 → Pro Max 430): shrink the top row so #title & #key never collide */
+  @media (max-width:440px){
+    #title{padding:6px 9px 7px}
+    #title h1{font-size:15px;letter-spacing:1.5px}
+    #title .sub{font-size:7px;letter-spacing:1px;margin-top:2px}
+    #notes-btn,#lang-btn{font-size:8px;margin-top:5px}
+    #title .credit{font-size:7px;margin-top:5px;max-width:165px;line-height:1.35}
+    #hud-tl{max-width:48vw} #key{max-width:42vw;font-size:8px;top:10px;right:8px;padding:5px 6px}
+    #resume{top:112px}   /* free-look prompt drops below the title/legend row so it never overlaps them */
+  }
+
+  /* ---------- evidence tags (injected inline in narration_en HTML) --- */
+  .evtag{display:inline-block;font-size:.70em;font-weight:700;letter-spacing:.05em;
+    padding:1px 6px;border-radius:3px;margin-right:5px;vertical-align:middle;
+    font-family:var(--mono);line-height:1.5}
+  .evtag.verified{background:#1a7a3a;color:#e8ffe8}
+  .evtag.approx{background:#8a6010;color:#fff8e0}
+  .evtag.contested{background:#7a1a1a;color:#ffe8e8}
 </style>
 </head>
 <body>
-  <div id="map"></div>
-  <div id="scrim"></div>
+  <div id="scene"></div>
+  <div id="lower-scrim"></div>
+  <div id="labels"></div>
 
   <div id="hud-tl">
     <div id="title" class="panel">
-      <h1>理大圍城 2019</h1>
-      <div class="sub">THE SIEGE OF POLYU · 2019</div>
-      <button id="notes-btn" class="btn">ⓘ 說明與來源 · Notes</button>
-      <button id="lang-btn" class="btn">中／EN</button>
+      <h1></h1>
+      <div class="sub" lang="en"></div>
+      <button id="notes-btn"></button>
+      <button id="lang-btn" aria-label="Toggle narration language"></button>
+      <button id="music-btn" class="off" title="Music" aria-label="Background music">🔇</button>
+      <div class="credit"><a href="https://github.com/keithligh/cinematic-3d-battle-engine" target="_blank" rel="noopener">cinematic-3d-battle-engine</a> by Keith Li (MIT)</div>
     </div>
+    <div id="disclaimer"></div>
+    <div id="hint" class="panel"></div>
   </div>
 
-  <div id="day" class="panel">
-    <div class="d" id="day-num">DAY 1</div>
-    <div class="date" id="day-date">2019年11月</div>
-    <div class="en" id="day-en">Nov 2019</div>
-    <div class="act" id="day-act">ACT 1 / 10</div>
-    <button id="mute-btn" class="btn">🔇</button>
-  </div>
+  <div id="key" class="panel"></div><!-- the legend is painted from data by buildChrome(): faction rows from FAC, line rows from D.geography.lines, symbol/flag labels from D.ui -->
 
-  <div id="key" class="panel"></div>
 
-  <div id="cap">
+  <!-- cinematic lower-third caption (driven by the Director) -->
+  <div id="caption">
     <div class="date" id="cap-date"></div>
     <div class="ttl" id="cap-title"></div>
     <div class="narr" id="cap-narr"></div>
+    <div class="meta" id="cap-meta"></div>
   </div>
 
-  <div id="ctrl">
-    <button class="tbtn" id="prev" title="上一幕 · Previous">⏮</button>
-    <button class="tbtn" id="play" title="播放／暫停 · Play / pause">⏸</button>
-    <button class="tbtn" id="next" title="下一幕 · Next">⏭</button>
-    <div id="prog" role="progressbar" aria-label="導覽進度 · Tour progress"><i></i></div>
-    <div id="scene-lbl"></div>
+  <div id="credit" lang="en">Built by Johnny Lai</div>
+
+  <!-- minimal transport (auto-hides) -->
+  <div id="controls">
+    <button id="play" title="Play / pause" aria-label="Play / pause">⏸</button>
+    <div id="prog" role="progressbar" aria-label="Tour progress"><i></i><div class="beats" id="prog-beats"></div></div>
+    <div id="scene-label"></div>
   </div>
+
+  <div id="resume"></div>
 
   <div id="notes" class="panel">
-    <div class="nhd"><span>說明與來源 · NOTES &amp; SOURCES</span><button id="notes-close">✕</button></div>
+    <div class="nhd"><span></span><button id="notes-close" aria-label="Close">✕</button></div>
     <div id="notes-body" class="nbody"></div>
   </div>
 
-  <div id="foot">衛星影像 Satellite © Esri — Esri, Maxar, Earthstar Geographics · 示意重建 illustrative · 中立紀錄，不持立場 · documentary, no stance implied</div>
+  <!-- Background music: element present but with NO src, so the engine hides the music
+       button (director.js wireUI reads bgm.getAttribute("src")). To enable music, drop a
+       NEUTRAL ambient CC0 track (e.g. Pixabay — no militaristic/triumphalist/dramatic
+       character) into lib/ and add src="lib/<track>.mp3" below. -->
+  <audio id="bgm" loop muted preload="none"></audio>
 
-  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"
-    integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+  <div id="boot">
+    <div class="bt"></div>
+    <div class="bs"></div>
+    <div class="bar"><i></i></div>
+    <div class="msg" id="boot-msg"></div>
+  </div>
+  <pre id="err"></pre>
+
+  <!-- vendored Three.js r128 (classic globals) + scenario data load first, synchronously -->
+  <script src="lib/three.min.js"></script>
+  <script src="lib/OrbitControls.js"></script>
+  <script src="lib/CSS2DRenderer.js"></script>
   <script src="data.js"></script>
-  <script>
-  (function(){
-    const D = window.BATTLE_DATA;
-    // faction → marker style. shapes are pure CSS (no images/flags/military symbols).
-    const FAC = {
-      jp:    { css:"#d9a441", shape:"circle",  size:14, glyph:"",  zh:"示威者・學生", en:"Protesters" },
-      uk:    { css:"#5b7fa6", shape:"square",  size:16, glyph:"",  zh:"警方",        en:"Police" },
-      med:   { css:"#b9c0c8", shape:"diamond", size:14, glyph:"",  zh:"調停",        en:"Mediators" },
-      civ:   { css:"#c8c8c8", shape:"hollow",  size:14, glyph:"",  zh:"市民",        en:"Civilians" },
-      aid:   { css:"#e05555", shape:"cross",   size:14, glyph:"+", zh:"急救",        en:"First Aid" },
-      press: { css:"#e8e0d0", shape:"press",   size:14, glyph:"P", zh:"記者",        en:"Press" },
-    };
-    const FAC_ORDER = ["jp","uk","med","civ","aid","press"];
-    const COL = { jp:FAC.jp.css, uk:FAC.uk.css, med:FAC.med.css };
-    const $ = id => document.getElementById(id);
-
-    // ---- map ----
-    const CENTER = [22.3035, 114.180];
-    const map = L.map("map", {
-      center: CENTER, zoom: 17, minZoom: 15, maxZoom: 19,
-      zoomControl: false, zoomSnap: 0, attributionControl: true,
-      maxBounds: [[22.2955, 114.1695],[22.3125, 114.1905]], maxBoundsViscosity: 1.0,
-    });
-    L.control.zoom({ position: "bottomright" }).addTo(map);
-    L.tileLayer(
-      "https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}",
-      { attribution: "Tiles © Esri", maxZoom: 19, maxNativeZoom: 19, crossOrigin: true }
-    ).addTo(map);
-
-    // ---- place labels (orientation) ----
-    (D.geography.points || []).forEach(p => {
-      L.marker([p.lat, p.lng], { interactive:false, keyboard:false,
-        icon: L.divIcon({ className:"", html:`<div class="place">${p.name_zh}<span class="en">${p.name_en}</span></div>`,
-          iconSize:[120,0], iconAnchor:[60,8] }) }).addTo(map);
-    });
-
-    // ---- cordon polyline (police line[0]); shown once it forms ~17 Nov ----
-    const cordon = D.geography.lines && D.geography.lines[0];
-    let cordonLayer = null;
-    if (cordon) {
-      cordonLayer = L.polyline(cordon.path.map(c => [c[1], c[0]]),
-        { color: COL.uk, weight: 3, dashArray: "8 6", opacity: 0 }).addTo(map);
-    }
-
-    // ---- unit position sampling (linear interp over track) ----
-    function sampleTrack(track, day){
-      if (day <= track[0].d) return track[0];
-      const last = track[track.length-1];
-      if (day >= last.d) return last;
-      for (let i=0;i<track.length-1;i++){
-        const a=track[i], b=track[i+1];
-        if (day>=a.d && day<=b.d){ const t=(day-a.d)/((b.d-a.d)||1);
-          return { lng:a.lng+(b.lng-a.lng)*t, lat:a.lat+(b.lat-a.lat)*t, s:Math.round(a.s+(b.s-a.s)*t), st:a.st }; }
-      }
-      return last;
-    }
-    const clamp=(v,a,b)=>v<a?a:v>b?b:v;
-
-    // a unit is "on stage" from just before its track starts to a beat after it ends
-    function onStage(u, day){
-      const t0=u.track[0].d, t1=u.track[u.track.length-1].d;
-      return day >= t0-0.4 && day <= t1+1.2;
-    }
-    function unitLabel(u){ return lang==="en" ? (u.name_en||u.name_zh) : u.name_zh; }
-
-    // action-matched animation classes (see Notion page 7). Neutral: pulse/slide/
-    // fade only — no fire, explosion or muzzle-flash. Clash = pulse, not particles.
-    function animClassFor(u, anim){
-      switch(anim){
-        case "pulse":   return u.faction==="jp" ? "anim-pulse" : "";
-        case "cordon":  return u.faction==="jp" ? "anim-pulse" : "";   // inside hold as exits seal
-        case "clash":   return (u.faction==="jp"||u.faction==="uk") ? "anim-clash" : "";
-        case "move":    return u.faction==="jp" ? "anim-move" : "";
-        case "abseil":  return u.id==="escape" ? "anim-abseil" : "";
-        case "fadein":  return u.faction==="med" ? "anim-fadein" : "";
-        case "fadeout": return u.faction==="jp" ? "anim-fadeout" : "";
-        default: return "";
-      }
-    }
-
-    const unitLayer = L.layerGroup().addTo(map);
-    function renderUnits(act){
-      unitLayer.clearLayers();
-      const day = act.day, anim = act.anim||"", F = new Set(act.focus||[]);
-      let jpIdx = 0;
-      D.units.forEach(u => {
-        if (!onStage(u, day)) return;
-        const s = sampleTrack(u.track, day);
-        const f = FAC[u.faction] || { css:"#ccc", shape:"circle", size:14 };
-        const focused = F.has(u.id);
-        const ac = animClassFor(u, anim);
-        const stateCls = focused ? "focused" : (ac==="anim-fadeout" ? "" : "dim");
-        const cls = ["mk","mk-"+f.shape, ac, stateCls].filter(Boolean).join(" ");
-        // dwindling numbers: inside markers fade out one after another
-        const delay = (ac==="anim-fadeout") ? `animation-delay:${(jpIdx*0.5).toFixed(2)}s;` : "";
-        if (u.faction==="jp") jpIdx++;
-        const html = `<div class="${cls}" style="--c:${f.css};--sz:${f.size}px;${delay}">`+
-                     `<span class="mk-glyph"></span><span class="mk-lbl">${unitLabel(u)}</span></div>`;
-        L.marker([s.lat, s.lng], { interactive:false, keyboard:false,
-          icon: L.divIcon({ className:"", html, iconSize:[90, f.size+18], iconAnchor:[45, f.size/2] }) }).addTo(unitLayer);
-      });
-    }
-
-    // ---- legend: 6 factions, greyed when not on stage in the current act ----
-    function buildLegend(){
-      $("key").innerHTML = FAC_ORDER.map(k => {
-        const f = FAC[k];
-        return `<div class="row" data-fac="${k}" style="color:${f.css}">`+
-               `<span class="g ${f.shape}" style="background:${f.shape==='hollow'?'transparent':f.css}"></span>`+
-               `<span class="lbl"></span></div>`;
-      }).join("") +
-      `<div class="row" data-fac="cordon" style="color:${FAC.uk.css}"><span class="ln"></span><span class="lbl"></span></div>`;
-    }
-    function updateLegend(act){
-      const active = new Set();
-      D.units.forEach(u => { if (onStage(u, act.day)) active.add(u.faction); });
-      const cordonOn = act.day >= 16.5;
-      $("key").querySelectorAll(".row").forEach(row => {
-        const k = row.dataset.fac;
-        const f = FAC[k];
-        const on = k==="cordon" ? cordonOn : active.has(k);
-        row.classList.toggle("off", !on);
-        const lbl = row.querySelector(".lbl");
-        if (k==="cordon"){
-          lbl.innerHTML = lang==="en" ? `<span class="en" style="margin:0">Police cordon</span>` : `警方封鎖線<span class="en">Cordon</span>`;
-        } else {
-          lbl.innerHTML = lang==="en" ? `<span class="en" style="margin:0">${f.en}</span>` : `${f.zh}<span class="en">${f.en}</span>`;
-        }
-      });
-    }
-
-    // ---- captions ----
-    let lang = "both"; // both | zh | en
-    let cur = 0;
-    function renderCaption(act){
-      $("cap-date").textContent = act.dateLabel || "";
-      $("cap-title").innerHTML = act.title_zh + `<span class="en">${act.title_en||""}</span>`;
-      const nz = `<span class="nz">${act.narration_zh||""}</span>`;
-      const ne = act.narration_en ? `<span class="ne">${act.narration_en}</span>` : "";
-      $("cap-narr").innerHTML = lang==="zh" ? nz : lang==="en" ? `<span class="ne" style="font-style:normal;color:#f0e7d2">${act.narration_en||act.narration_zh}</span>` : nz+ne;
-      $("cap").classList.add("show");
-    }
-    function dayLabel(act){
-      const dnum = Math.max(1, Math.floor(act.day) - 10);   // siege day 1 = 11 Nov
-      $("day-num").textContent = "DAY " + dnum;
-      $("day-date").textContent = act.dateLabel || "";
-      const dom = clamp(Math.floor(act.day), 11, 30);
-      $("day-en").textContent = dom + " Nov 2019";
-      $("day-act").textContent = `ACT ${cur+1} / ${D.storyboard.length}`;
-    }
-
-    // ---- zoom from the act's camera distance (closer act → higher zoom) ----
-    const zoomFor = dist => clamp(18.6 - (dist||700)/650, 16.4, 18.5);
-
-    // cordon visibility + one-shot "draw-in" on the act where exits are sealed
-    function setCordon(act){
-      if (!cordonLayer) return;
-      cordonLayer.setStyle({ opacity: act.day >= 16.5 ? 0.85 : 0 });
-      const path = cordonLayer._path;
-      if (!path) return;
-      if (act.anim === "cordon"){
-        const len = path.getTotalLength();
-        path.classList.remove("cordon-draw");
-        path.style.strokeDasharray = len;
-        path.style.strokeDashoffset = len;
-        void path.getBoundingClientRect();      // reflow so the draw restarts
-        path.classList.add("cordon-draw");
-      } else {
-        path.classList.remove("cordon-draw");
-        path.style.strokeDasharray = "8 6";
-        path.style.strokeDashoffset = "";
-      }
-    }
-
-    function show(i){
-      cur = (i + D.storyboard.length) % D.storyboard.length;
-      const act = D.storyboard[cur];
-      renderUnits(act);
-      setCordon(act);
-      updateLegend(act);
-      renderCaption(act); dayLabel(act);
-      map.flyTo([act.cam.lat, act.cam.lng], zoomFor(act.cam.dist), { duration: 1.6 });
-      $("prog").firstChild.style.width = ((cur+1)/D.storyboard.length*100) + "%";
-      $("scene-lbl").textContent = `${cur+1}/${D.storyboard.length}`;
-      if (cur === D.storyboard.length - 1) fadeOutBgm(); else resetVolume();
-      schedule(act);
-    }
-
-    // ---- transport / auto-advance ----
-    let playing = true, timer = null;
-    function schedule(act){
-      clearTimeout(timer);
-      if (!playing) return;
-      const hold = (act.hold || 8) * 1000;
-      timer = setTimeout(() => { if (cur+1 < D.storyboard.length) show(cur+1); else { playing=false; paintPlay(); } }, hold);
-    }
-    function paintPlay(){ $("play").textContent = playing ? "⏸" : "▶"; }
-    $("play").onclick = () => { if (cur===D.storyboard.length-1 && !playing){ playing=true; paintPlay(); show(0); return; } playing=!playing; paintPlay(); if(playing) schedule(D.storyboard[cur]); else clearTimeout(timer); };
-    $("prev").onclick = () => { show(cur-1); };
-    $("next").onclick = () => { show(cur+1); };
-    $("prog").onclick = (e) => { const r=$("prog").getBoundingClientRect(); show(Math.floor((e.clientX-r.left)/r.width*D.storyboard.length)); };
-    $("lang-btn").onclick = () => { lang = lang==="both"?"zh":lang==="zh"?"en":"both";
-      $("lang-btn").textContent = lang==="both"?"中／EN":lang==="zh"?"中文":"EN";
-      const act = D.storyboard[cur]; renderCaption(act); renderUnits(act); updateLegend(act); };
-
-    // ---- notes / sources ----
-    const n = D.notes || { summary:"", caveats:[], sources:"" };
-    $("notes-body").innerHTML = `<p>${n.summary}</p><h5>考據與呈現 · Caveats</h5><ul>`+
-      (n.caveats||[]).map(c=>`<li>${c}</li>`).join("")+`</ul><h5>主要來源 · Sources</h5><p>${n.sources}</p>`;
-    $("notes-btn").onclick = () => $("notes").classList.toggle("open");
-    $("notes-close").onclick = () => $("notes").classList.remove("open");
-
-    // a user drag/zoom pauses the tour (so they can explore)
-    map.on("dragstart zoomstart", () => { /* keep playing but don't fight the user mid-gesture */ });
-
-    // ---- audio ----
-    const bgm = (function(){
-      const a = document.createElement('audio');
-      a.src = './denis-pavlov-music-dark-despair-sad-dramatic-tragic-piano-cello-545572.mp3';
-      a.loop = true; a.preload = 'auto'; a.volume = 1;
-      document.body.appendChild(a);
-      return a;
-    })();
-    let audioUnlocked = false, audioMuted = false, fadeTick = null;
-    function paintMute(){ $("mute-btn").textContent = (!audioUnlocked || audioMuted) ? "🔇" : "🔊"; }
-    function resetVolume(){ clearInterval(fadeTick); fadeTick = null; if (bgm) bgm.volume = 1; }
-    function fadeOutBgm(){
-      resetVolume();
-      let v = 1;
-      fadeTick = setInterval(() => {
-        v = Math.max(0, v - 0.025);
-        bgm.volume = v;
-        if (v <= 0){ clearInterval(fadeTick); fadeTick = null; }
-      }, 150);
-    }
-    function unlockAudio(){
-      if (audioUnlocked) return;
-      audioUnlocked = true;
-      $("mute-btn").classList.remove("hint");
-      bgm.play().catch(() => {});
-      paintMute();
-    }
-    document.addEventListener("click", (e) => { if (e.target !== $("mute-btn")) unlockAudio(); });
-    $("mute-btn").onclick = () => {
-      if (!audioUnlocked){ unlockAudio(); return; }
-      audioMuted = !audioMuted;
-      bgm.muted = audioMuted;
-      if (!audioMuted && bgm.paused) bgm.play().catch(() => {});
-      paintMute();
-    };
-    $("mute-btn").classList.add("hint");
-    paintMute();
-
-    buildLegend();
-    paintPlay();
-    show(0);
-  })();
-  </script>
+  <!-- the engine is ES modules; this entry runs after the classic scripts above, so global THREE / BATTLE_DATA exist when it evaluates -->
+  <script type="module" src="app.js"></script>
 </body>
 </html>

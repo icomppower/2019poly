@@ -1,156 +1,333 @@
 /* =====================================================================
- *  data.js — 理大圍城 2019 · The Siege of PolyU
- *  Drives the (de-militarised) 1941 cinematic engine. Adapted to the
- *  engine's window.BATTLE_DATA contract:
- *    - units use `faction` (jp=inside · uk=police · med=mediator) and
- *      `name_zh`/`name_en` (the engine reads these, not `side`/`name:{}`);
- *    - track states are limited to hold | march | retreat (no combat VFX);
- *    - the engine REQUIRES fronts / hotspots / weather / intro / outro /
- *      notes keys, so they are present (fronts & hotspots empty on purpose).
+ *  data.js — 理大圍城 2019 · The Siege of PolyU (11–29 November 2019)
+ *  ---------------------------------------------------------------------
+ *  A fork of keithligh/cinematic-3d-battle-engine (MIT), same engine as
+ *  battle-of-hong-kong-1941; NEUTRAL-DOCUMENTARY posture shared with
+ *  kyiv2022-3d. The engine modules are never edited — a fork lives entirely
+ *  in this file + flags.js + index.html <head> + lib/tiles.
  *
- *  Illustrative reconstruction. Coordinates are approximate placeholders
- *  (refine on geojson.io). Day axis 11–29 == CFG.DAY_MIN/MAX.
+ *  Posture (neutral documentary, not cinematic):
+ *    • flat grade (theme.grade.filter="none"), neutral sky
+ *    • no faction emblems — flags.js draws plain colour swatches
+ *    • no strength bars — every unit cf:false
+ *    • no combat VFX — hotspots:[] and unit states limited to
+ *      hold | march | retreat | dead (no attack/landing/fire)
+ *    • evidence chips (verified / approx / contested) prefix each caption
+ *
+ *  Sides: 校內人士 inside (ochre) · 警方封鎖線 police (steel) · 調停人員 mediators (grey).
+ *  Coordinates are approximate reconstructions from public reporting; the
+ *  campus is near-flat, so 3D relief is minimal (meta.vexag pinned).
+ *  Every act (0–10) has at least one unit with a 2+ keyframe track (movement rule).
+ *  Day axis: d = day-of-month in November (11 … 29) == meta.dayMin/dayMax.
  * ===================================================================== */
 window.BATTLE_DATA = (function () {
 
-  const geography = {
-    regions: [
-      { name_en:"Hung Hom", name_zh:"紅磡", type:"region", lng:114.180, lat:22.302, h:0 },
-    ],
-    points: [
-      { name_en:"PolyU",                name_zh:"香港理工大學",   type:"fort", lng:114.1797, lat:22.3042, h:20 },
-      { name_en:"Cross-Harbour Tunnel", name_zh:"紅磡海底隧道",   type:"town", lng:114.1788, lat:22.3017, h:5 },
-      { name_en:"Hung Hom Station",     name_zh:"紅磡站",         type:"town", lng:114.1822, lat:22.3033, h:8 },
-      { name_en:"HK Coliseum",          name_zh:"香港體育館",     type:"town", lng:114.1818, lat:22.3019, h:10 },
-      { name_en:"Footbridge (abseil)",  name_zh:"天橋（吊繩處）", type:"fort", lng:114.1786, lat:22.3028, h:15 },
-    ],
-    // The engine renders lines[0] as a single tube; here it is the police
-    // cordon (label comes from name_zh/name_en — terrain.js reads them).
-    lines: [
-      { name_en:"Police cordon", name_zh:"警方封鎖線", side:"uk",
-        path:[[114.1776,22.2995],[114.1842,22.2995],[114.1842,22.3060],[114.1776,22.3060],[114.1776,22.2995]] },
-    ],
+  const INSIDE = "inside", POLICE = "police", MED = "mediators";
+
+  const factions = {
+    inside: { main:0xd9a441, glow:0xf0c469, dim:0x8a6a28, css:"#d9a441",
+              name_zh:"校內人士", name_en:"Inside (protesters)",
+              role:"defender", maxStrength:1500, defaultFlag:"inside" },
+    police: { main:0x5b7fa6, glow:0x84a8cf, dim:0x36506e, css:"#5b7fa6",
+              name_zh:"警方封鎖線", name_en:"Police cordon",
+              role:"attacker", maxStrength:2000, defaultFlag:"police" },
+    mediators:{ main:0xb9c0c8, glow:0xd8dde2, dim:0x7d838a, css:"#b9c0c8",
+              name_zh:"調停人員", name_en:"Mediators",
+              role:"neutral", maxStrength:200, defaultFlag:"mediators" },
   };
 
-  // faction: jp=inside · uk=police · med=mediator. track state: hold | march | retreat (no combat).
-  const units = [
-    { id:"inside_main", name_zh:"示威者・學生", name_en:"Protesters & students", faction:"jp",
-      track:[ {d:11,lng:114.1797,lat:22.3043,s:1100,st:"hold"}, {d:18,lng:114.1797,lat:22.3043,s:900,st:"hold"},
-              {d:22,lng:114.1797,lat:22.3043,s:300,st:"hold"}, {d:29,lng:114.1797,lat:22.3043,s:40,st:"hold"} ] },
-    { id:"civilians", name_zh:"市民", name_en:"Civilians", faction:"civ",
-      track:[ {d:11,lng:114.1815,lat:22.3030,s:200,st:"hold"}, {d:12,lng:114.1815,lat:22.3030,s:160,st:"hold"},
-              {d:13,lng:114.1815,lat:22.3030,s:80,st:"retreat"} ] },   // context only, gone by Act 3
-    { id:"firstaid", name_zh:"急救站", name_en:"First-aid station", faction:"aid",
-      track:[ {d:12,lng:114.1804,lat:22.3047,s:60,st:"hold"}, {d:25,lng:114.1804,lat:22.3047,s:30,st:"hold"} ] },
-    { id:"reporters", name_zh:"記者", name_en:"Reporters", faction:"press",
-      track:[ {d:12,lng:114.1790,lat:22.3038,s:50,st:"hold"}, {d:17.2,lng:114.1790,lat:22.3038,s:20,st:"retreat"} ] },
-    { id:"police_s", name_zh:"警方防線（南）", name_en:"Police line (S)", faction:"uk",
-      track:[ {d:17,lng:114.1797,lat:22.3023,s:600,st:"hold"}, {d:29,lng:114.1797,lat:22.3023,s:600,st:"hold"} ] },
-    { id:"police_e", name_zh:"警方防線（東）", name_en:"Police line (E)", faction:"uk",
-      track:[ {d:17,lng:114.1817,lat:22.3044,s:500,st:"hold"}, {d:29,lng:114.1817,lat:22.3044,s:500,st:"hold"} ] },
-    { id:"watercannon", name_zh:"水炮／裝甲車", name_en:"Water cannon / armour", faction:"uk",
-      track:[ {d:17,lng:114.1783,lat:22.3048,s:120,st:"hold"}, {d:20,lng:114.1783,lat:22.3048,s:120,st:"hold"} ] },
-    { id:"mediators", name_zh:"調停（校長・議員）", name_en:"Mediators", faction:"med",
-      track:[ {d:22,lng:114.1810,lat:22.3037,s:30,st:"hold"}, {d:26,lng:114.1810,lat:22.3037,s:30,st:"hold"} ] },
-    { id:"breakout", name_zh:"突圍", name_en:"Breakout attempt", faction:"jp",
-      track:[ {d:18,lng:114.1800,lat:22.3038,s:200,st:"march"}, {d:18.4,lng:114.1816,lat:22.3033,s:120,st:"retreat"} ] },
-    { id:"escape", name_zh:"離開（吊繩・渠道）", name_en:"Escape (abseil / drains)", faction:"jp",
-      track:[ {d:18.5,lng:114.1786,lat:22.3028,s:80,st:"march"}, {d:19,lng:114.1781,lat:22.3016,s:40,st:"retreat"} ] },
-  ];
-
-  const arrows = []; // movement is conveyed by the units' own tracks; no separate combat arrows
-
-  const storyboard = [
-    { day:11, hold:9, cam:{lng:114.180,lat:22.303,dist:900,az:0,el:48,orbit:0.6},
-      dateLabel:"2019年11月", title_zh:"理大圍城・背景", title_en:"PolyU under occupation",
-      narration_zh:"2019年11月，反修例運動已持續數月。理大位處紅磡，緊鄰紅磡海底隧道，成為被佔據的校園之一。",
-      narration_en:"By November 2019, months into the protests, PolyU — beside the Cross-Harbour Tunnel — had become one of several occupied campuses.",
-      focus:["inside_main"], side:"jp" },
-    { day:11.5, hold:9, anim:"pulse", cam:{lng:114.1793,lat:22.3025,dist:700,az:20,el:52,orbit:0.6},
-      dateLabel:"11月11–16日", title_zh:"築防線・封紅隧", title_en:"Fortify & blockade the tunnel",
-      narration_zh:"11月中，示威者在校園築起防線，並封堵毗鄰的紅隧收費廣場，使過海要道癱瘓多日。",
-      narration_en:"In mid-November, protesters fortified the campus and blockaded the adjacent tunnel toll plaza, shutting the cross-harbour route for days.",
-      focus:["inside_main"], side:"jp" },
-    { day:17, hold:9.5, anim:"clash", cam:{lng:114.1798,lat:22.3038,dist:620,az:30,el:58,orbit:0.6},
-      dateLabel:"11月17日", title_zh:"警方包圍・外圍衝突", title_en:"Police surround the campus",
-      narration_zh:"11月17日，警方包圍理大並嘗試清場。外圍天橋與出入口爆發衝突，警方施放催淚彈、水炮，示威者以汽油彈、磚塊還擊。",
-      narration_en:"On 17 November police surrounded PolyU and moved to clear it. Clashes erupted at the footbridges and entrances — tear gas and water cannon met petrol bombs and bricks.",
-      focus:["inside_main","police_s","watercannon"], side:"both" },
-    { day:17.3, hold:9.5, anim:"clash", cam:{lng:114.1789,lat:22.3030,dist:560,az:14,el:60,orbit:0.5},
-      dateLabel:"11月17日", title_zh:"衝突升級", title_en:"Escalation",
-      narration_zh:"一輛警方裝甲車一度起火；一名警方傳媒聯絡隊員被箭射中小腿；警方警告若再有致命武器，或會使用實彈。",
-      narration_en:"A police armoured vehicle was briefly set alight; a media-liaison officer was struck in the leg by an arrow; police warned live rounds might be used.",
-      focus:["watercannon","police_s"], side:"both" },
-    { day:17.8, hold:9, anim:"cordon", cam:{lng:114.1800,lat:22.3040,dist:680,az:36,el:55,orbit:0.6},
-      dateLabel:"11月17–18日", title_zh:"封鎖出口・數百人被困", title_en:"Cordon sealed; hundreds trapped",
-      narration_zh:"警方封鎖所有出口，宣布留在校內者可被控暴動。數以百計示威者、學生、急救員與記者被困。",
-      narration_en:"Police sealed every exit and declared that those inside could be charged with rioting. Hundreds — protesters, students, first-aiders and reporters — were trapped.",
-      focus:["inside_main","police_e","police_s"], side:"both" },
-    { day:18, hold:9, anim:"move", cam:{lng:114.1808,lat:22.3035,dist:600,az:50,el:56,orbit:0.6},
-      dateLabel:"11月18日", title_zh:"突圍・多人被捕", title_en:"Breakout attempts",
-      narration_zh:"11月18日凌晨，被困者多次嘗試突圍，向紅磡方向衝出，多人被捕；校園出口一度起火。",
-      narration_en:"Before dawn on 18 November, those inside made repeated breakout attempts toward Hung Hom; many were arrested, and fires burned at the exits.",
-      focus:["breakout","police_e"], side:"both" },
-    { day:18.5, hold:9.5, anim:"abseil", cam:{lng:114.1786,lat:22.3024,dist:520,az:8,el:62,orbit:0.5},
-      dateLabel:"11月18–19日", title_zh:"吊繩・渠道離開", title_en:"Escape routes",
-      narration_zh:"有人從天橋以繩索吊下，登上接應的電單車；亦有人嘗試經渠道與排水管離開。",
-      narration_en:"Some abseiled on ropes from a footbridge to motorcycles waiting on the tunnel approach road; others tried the drainage tunnels.",
-      focus:["escape"], side:"jp" },
-    { day:20, hold:9, anim:"pulse", cam:{lng:114.1799,lat:22.3041,dist:620,az:24,el:55,orbit:0.6},
-      dateLabel:"11月19–20日", title_zh:"人道狀況惡化", title_en:"Conditions deteriorate",
-      narration_zh:"校內糧食、衞生與醫療物資短缺，急救站與紅十字會照料傷者。",
-      narration_en:"Inside, shortages of food, sanitation and medical supplies set in, with first-aid stations and the Red Cross tending the injured.",
-      focus:["firstaid","inside_main"], side:"jp" },
-    { day:22, hold:9, anim:"fadein", cam:{lng:114.1803,lat:22.3038,dist:640,az:18,el:54,orbit:0.6},
-      dateLabel:"11月19–22日", title_zh:"斡旋・未成年者離開", title_en:"Negotiated exits",
-      narration_zh:"中學校長、宗教人士、立法會議員與醫護人員介入斡旋；18歲以下者獲准登記資料後離開，不即時拘捕。",
-      narration_en:"School principals, clergy, lawmakers and medics helped broker exits; those under 18 were allowed to leave after their details were recorded, without immediate arrest.",
-      focus:["mediators","inside_main"], side:"med" },
-    { day:29, hold:10, anim:"fadeout", cam:{lng:114.180,lat:22.3032,dist:880,az:6,el:48,orbit:0.6},
-      dateLabel:"11月22–29日", title_zh:"落幕・約1,100人被捕", title_en:"Wind-down (~1,100 arrested)",
-      narration_zh:"校內人數逐日減少，警方於11月底（約28–29日）進入校園搜索。事件中前後約1,100人被捕或登記。理大圍城成為2019年運動的標誌性場面。",
-      narration_en:"Numbers dwindled; police searched the campus around 28-29 November. In all, roughly 1,100 people were arrested or registered. The siege became a defining image of 2019.",
-      focus:["inside_main","police_s"], side:"both" },
-  ];
-
-  // ---- required-by-engine keys (kept minimal / neutral) -------------------
-  const fronts   = [];   // no moving front line (terrain.updateFront tolerates empty)
-  const hotspots = [];   // no combat VFX emitters (entities.updateEffects tolerates empty)
-
-  // weather drives only the daylight/sky tone here — clear late-November days,
-  // a touch darker before the pre-dawn breakout. No rain, no smoke.
-  const weather = [
-    { d:11, night:0.05, fog:0.10, rain:0, smoke:0, zh:"晴", en:"Clear" },
-    { d:17, night:0.06, fog:0.10, rain:0, smoke:0, zh:"晴", en:"Clear" },
-    { d:18, night:0.18, fog:0.12, rain:0, smoke:0, zh:"凌晨", en:"Before dawn" },
-    { d:19, night:0.06, fog:0.10, rain:0, smoke:0, zh:"晴", en:"Clear" },
-    { d:29, night:0.06, fog:0.10, rain:0, smoke:0, zh:"晴", en:"Clear" },
-  ];
+  /* Campus box (Notion 5 · The Build). Safe band (>8% inside each edge):
+   * lng [114.172, 114.193] · lat [22.2973, 22.3107] — every coord below fits.  */
+  const meta = {
+    geo: { minLng:114.170, maxLng:114.195, minLat:22.296, maxLat:22.312, Z:15 },
+    dayMin:11, dayMax:29, year:2019, month:11, lastDay:29,
+    title:"理大圍城 2019", subtitle:"The Siege of PolyU · 11–29 November 2019",
+    vexag:1.5,   // near-flat urban campus — pin so the auto-derive doesn't spike tiny relief
+    theme: {
+      /* neutral documentary: flat legible satellite, no sepia/grain/vignette wash */
+      grade: { filter:"none", vignette:0.12, grain:0, brightness:1.06 },
+      sky:   { day:0x9fb4c8, dayB:0xc4d2de, night:0x0d1117, nightB:0x1a2230 },
+    },
+    ui: { sceneLabel:false },
+  };
 
   const intro = {
-    title_zh:"理大圍城 2019", title_en:"THE SIEGE OF POLYU · 2019",
-    narration_zh:"2019年11月11日至29日 · 香港理工大學 · 一場校園圍困",
-    narration_en:"11–29 November 2019 · Hong Kong Polytechnic University · a campus under siege",
+    title_zh:"理大圍城 2019", title_en:"The Siege of PolyU",
+    sub_zh:"2019年11月11–29日 · 香港理工大學 · 一場校園圍困的紀錄重建。",
+    sub_en:"11–29 November 2019 · Hong Kong Polytechnic University · a documentary reconstruction of a campus siege.",
+    cam: { lng:114.182, lat:22.304, dist:2400, az:0, el:44, orbit:0.5 },
   };
 
   const outro = {
-    title_zh:"理大圍城・尾聲", title_en:"AFTERMATH",
-    narration_zh:"圍城歷時約十三日。事件中前後約1,100人被捕或登記，成為2019年運動最受關注的場面之一。此重建僅作示意，數字與細節仍有爭議。",
-    narration_en:"The siege lasted about thirteen days. Around 1,100 people were arrested or registered — one of the most closely watched episodes of 2019. This reconstruction is illustrative; figures and details remain disputed.",
+    title_zh:"圍城終結", title_en:"End of the Siege",
+    narration_zh:"圍城歷時約十三日。約1,300人被捕或自首，約百人經渠道、繩索或車隊離開。事件成為2019年運動最受關注的場面之一。本作為紀錄重建，非倡議；來源見說明面板。",
+    narration_en:"The siege lasted about thirteen days. Roughly 1,300 people were arrested or surrendered; about a hundred left via drains, ropes, or vehicle convoys. It became one of the most closely watched episodes of 2019. This is a documentary reconstruction, not advocacy; sources are in the Notes panel.",
+    cam: { lng:114.182, lat:22.3035, dist:2700, az:0, el:42, orbit:1.0, tween:3.4 },
   };
 
-  const caveats = [
-    "示意重建 · Illustrative reconstruction — positions, cordon and routes are approximate; coordinates are placeholders (geojson.io).",
-    "現今衛星影像與地形 · Present-day imagery and terrain; the campus is near-flat, so 3D relief is minimal.",
-    "時序綜合自報導（路透社、美聯社、BBC、HKFP、南華早報）· Timeline from Reuters, AP, BBC, HKFP, SCMP; figures approximate; some details disputed.",
-    "底圖 · Imagery: EOX Sentinel-2 cloudless 2016 (CC BY 4.0). Elevation: SRTM/USGS via AWS Terrain Tiles.",
+  /* plain-swatch legend rows (no national flags) */
+  const flagLegend = [
+    { flag:"inside",    zh:"校內人士",     en:"Inside (protesters)", faction:"inside" },
+    { flag:"police",    zh:"警方封鎖線",   en:"Police cordon",       faction:"police" },
+    { flag:"mediators", zh:"調停人員",     en:"Mediators",           faction:"mediators" },
   ];
 
-  const notes = {
-    summary: "一段以真實地形與導覽鏡頭重建的紀錄短片，呈現2019年11月香港理工大學的圍困事件。本作為紀錄而非倡議：盡量持平、註明來源、描述發生了什麼。 · An interactive 3D documentary of the November 2019 siege of Hong Kong Polytechnic University, on real terrain with a directed camera. Documentary, not advocacy: restrained, sourced, describing what happened.",
-    caveats,
-    sources: "路透社 Reuters · 美聯社 AP · BBC · 香港自由新聞 HKFP · 南華早報 SCMP。數字與部分細節仍有爭議。 · Cross-checked across Reuters, AP, BBC, HKFP and SCMP; figures and some details remain disputed.",
+  /* ---- geography (orientation labels + the police cordon) ------------ */
+  const geography = {
+    points: [
+      { name_zh:"香港理工大學",   name_en:"PolyU",                type:"region", lng:114.1798, lat:22.3042, h:0 },
+      { name_zh:"紅磡海底隧道",   name_en:"Cross-Harbour Tunnel", type:"town",   lng:114.1787, lat:22.3019, h:0 },
+      { name_zh:"紅磡站",         name_en:"Hung Hom Station",     type:"town",   lng:114.1819, lat:22.3034, h:0 },
+      { name_zh:"香港體育館",     name_en:"HK Coliseum",          type:"town",   lng:114.1818, lat:22.3021, h:0 },
+      { name_zh:"行人天橋",       name_en:"Footbridge",           type:"fort",   lng:114.1787, lat:22.3029, h:0 },
+      { name_zh:"漆咸道南",       name_en:"Chatham Road South",   type:"town",   lng:114.1806, lat:22.3050, h:0 },
+    ],
+    lines: [
+      /* Police cordon ring around the campus (declared a "riot scene" ~18 Nov; the
+       * narration carries the timing — the ring itself is drawn throughout for orientation). */
+      { name_zh:"警方封鎖線", name_en:"Police cordon", color:"#5b7fa6",
+        path:[[114.1778,22.3013],[114.1815,22.3013],[114.1820,22.3050],[114.1782,22.3052],[114.1778,22.3013]] },
+    ],
   };
 
-  return { geography, units, arrows, storyboard, fronts, hotspots, weather, intro, outro, caveats, notes };
+  /* ---- units (all cf:false → no strength bars; kind:command = the water-cannon /
+   *  armoured vehicle, distinct diamond glyph; everything else infantry). ---------- */
+  const units = [
+    /* — INSIDE (校內人士) — */
+    { id:"inside_core", faction:INSIDE, kind:"infantry", flag:"inside", cf:false,
+      name_zh:"校內人士（主體）", name_en:"Inside — main body",
+      track:[
+        { d:11.0, lng:114.1793, lat:22.3034, s:600,  st:"march" },
+        { d:11.6, lng:114.1798, lat:22.3042, s:1100, st:"hold"  },
+        { d:13.0, lng:114.1798, lat:22.3042, s:1100, st:"hold"  },
+        { d:18.0, lng:114.1798, lat:22.3042, s:900,  st:"hold"  },
+        { d:20.0, lng:114.1798, lat:22.3042, s:600,  st:"hold"  },
+        { d:24.0, lng:114.1798, lat:22.3042, s:300,  st:"hold"  },
+        { d:29.0, lng:114.1798, lat:22.3042, s:60,   st:"dead"  },
+      ] },
+    { id:"inside_blockade", faction:INSIDE, kind:"infantry", flag:"inside", cf:false,
+      name_zh:"封路（紅隧）", name_en:"Tunnel blockade",
+      track:[
+        { d:11.6, lng:114.1798, lat:22.3042, s:300, st:"march"   },
+        { d:12.0, lng:114.1787, lat:22.3021, s:300, st:"hold"    },
+        { d:13.0, lng:114.1787, lat:22.3021, s:300, st:"hold"    },
+        { d:17.0, lng:114.1799, lat:22.3039, s:200, st:"retreat" },
+      ] },
+    { id:"inside_perim", faction:INSIDE, kind:"infantry", flag:"inside", cf:false,
+      name_zh:"外圍防線", name_en:"Perimeter line",
+      track:[
+        { d:14.0, lng:114.1807, lat:22.3047, s:260, st:"hold"    },
+        { d:16.0, lng:114.1807, lat:22.3047, s:260, st:"hold"    },
+        { d:17.0, lng:114.1799, lat:22.3039, s:200, st:"retreat" },
+      ] },
+    { id:"inside_consolidate", faction:INSIDE, kind:"infantry", flag:"inside", cf:false,
+      name_zh:"向中心收縮", name_en:"Consolidation",
+      track:[
+        { d:20.0, lng:114.1804, lat:22.3036, s:220, st:"march" },
+        { d:21.5, lng:114.1798, lat:22.3041, s:250, st:"hold"  },
+        { d:24.0, lng:114.1798, lat:22.3041, s:200, st:"hold"  },
+      ] },
+    { id:"inside_escape_rope", faction:INSIDE, kind:"infantry", flag:"inside", cf:false,
+      name_zh:"離開（吊繩）", name_en:"Escape — rope rappel",
+      track:[
+        { d:18.5, lng:114.1798, lat:22.3042, s:120, st:"march" },
+        { d:18.7, lng:114.1787, lat:22.3029, s:100, st:"march" },
+        { d:19.0, lng:114.1784, lat:22.3022, s:60,  st:"dead"  },
+      ] },
+    { id:"inside_escape_drain", faction:INSIDE, kind:"infantry", flag:"inside", cf:false,
+      name_zh:"離開（渠道）", name_en:"Escape — storm drains",
+      track:[
+        { d:19.1, lng:114.1804, lat:22.3036, s:80, st:"march" },
+        { d:19.4, lng:114.1789, lat:22.3017, s:40, st:"dead"  },
+      ] },
+    { id:"inside_escape_west", faction:INSIDE, kind:"infantry", flag:"inside", cf:false,
+      name_zh:"離開（西面）", name_en:"Escape — west",
+      track:[
+        { d:19.1, lng:114.1799, lat:22.3039, s:70, st:"march"   },
+        { d:19.5, lng:114.1783, lat:22.3031, s:40, st:"retreat" },
+      ] },
+    { id:"inside_surrender", faction:INSIDE, kind:"infantry", flag:"inside", cf:false,
+      name_zh:"自首／離開", name_en:"Surrender flow",
+      track:[
+        { d:27.0, lng:114.1798, lat:22.3042, s:150, st:"march" },
+        { d:28.0, lng:114.1795, lat:22.3030, s:100, st:"march" },
+        { d:28.6, lng:114.1811, lat:22.3044, s:60,  st:"dead"  },
+      ] },
+
+    /* — POLICE (警方封鎖線) — */
+    { id:"police_south", faction:POLICE, kind:"infantry", flag:"police", cf:false,
+      name_zh:"警方（南／隧道）", name_en:"Police — south / tunnel",
+      track:[
+        { d:13.0, lng:114.1806, lat:22.3050, s:400, st:"march" },
+        { d:13.5, lng:114.1789, lat:22.3025, s:400, st:"hold"  },
+        { d:18.0, lng:114.1789, lat:22.3025, s:500, st:"hold"  },
+        { d:28.9, lng:114.1789, lat:22.3025, s:500, st:"hold"  },
+        { d:29.0, lng:114.1798, lat:22.3042, s:500, st:"march" },
+      ] },
+    { id:"police_east", faction:POLICE, kind:"infantry", flag:"police", cf:false,
+      name_zh:"警方（東／紅磡站）", name_en:"Police — east / station",
+      track:[
+        { d:16.0, lng:114.1819, lat:22.3034, s:300, st:"march" },
+        { d:17.5, lng:114.1811, lat:22.3044, s:400, st:"hold"  },
+        { d:18.0, lng:114.1811, lat:22.3044, s:400, st:"hold"  },
+        { d:28.9, lng:114.1811, lat:22.3044, s:400, st:"hold"  },
+        { d:29.0, lng:114.1799, lat:22.3039, s:400, st:"march" },
+      ] },
+    { id:"police_ring", faction:POLICE, kind:"infantry", flag:"police", cf:false,
+      name_zh:"警方（封鎖環）", name_en:"Police — cordon ring",
+      track:[
+        { d:18.0, lng:114.1805, lat:22.3054, s:400, st:"march" },
+        { d:18.3, lng:114.1802, lat:22.3049, s:400, st:"hold"  },
+        { d:20.0, lng:114.1802, lat:22.3049, s:400, st:"hold"  },
+        { d:29.0, lng:114.1802, lat:22.3049, s:400, st:"hold"  },
+      ] },
+    { id:"police_armor", faction:POLICE, kind:"command", flag:"police", cf:false,
+      name_zh:"水炮／裝甲車", name_en:"Water cannon / armour",
+      track:[
+        { d:17.0, lng:114.1789, lat:22.3025, s:120, st:"hold"  },
+        { d:17.5, lng:114.1787, lat:22.3022, s:120, st:"march" },
+        { d:18.0, lng:114.1787, lat:22.3022, s:120, st:"hold"  },
+        { d:20.0, lng:114.1787, lat:22.3022, s:120, st:"hold"  },
+      ] },
+
+    /* — MEDIATORS (調停人員) — */
+    { id:"mediators", faction:MED, kind:"infantry", flag:"mediators", cf:false,
+      name_zh:"調停人員", name_en:"Mediators",
+      track:[
+        { d:11.0, lng:114.1806, lat:22.3050, s:30, st:"march"   },
+        { d:11.4, lng:114.1793, lat:22.3034, s:30, st:"hold"    },
+        { d:21.5, lng:114.1793, lat:22.3034, s:30, st:"march"   },
+        { d:22.5, lng:114.1798, lat:22.3041, s:40, st:"hold"    },
+        { d:26.0, lng:114.1798, lat:22.3041, s:40, st:"hold"    },
+        { d:28.0, lng:114.1795, lat:22.3030, s:30, st:"hold"    },
+        { d:29.0, lng:114.1798, lat:22.3041, s:30, st:"hold"    },
+        { d:29.5, lng:114.1806, lat:22.3050, s:20, st:"retreat" },
+      ] },
+  ];
+
+  /* movement is conveyed by the units' own tracks — no separate combat arrows */
+  const arrows = [];
+
+  /* neutral posture: no combat VFX emitters */
+  const hotspots = [];
+
+  /* weather here only tints daylight/sky — clear late-November days, darker
+   * pre-dawn for the 18–19 Nov breakout, night for the final clearance. No rain, no smoke. */
+  const weather = [
+    { d:11.0, night:0.05, fog:0.10, rain:0, smoke:0, zh:"晴",   en:"Clear"        },
+    { d:13.0, night:0.05, fog:0.10, rain:0, smoke:0, zh:"晴",   en:"Clear"        },
+    { d:18.0, night:0.20, fog:0.12, rain:0, smoke:0, zh:"凌晨", en:"Before dawn"  },
+    { d:19.0, night:0.08, fog:0.10, rain:0, smoke:0, zh:"晴",   en:"Clear"        },
+    { d:24.0, night:0.05, fog:0.10, rain:0, smoke:0, zh:"晴",   en:"Clear"        },
+    { d:29.0, night:0.55, fog:0.15, rain:0, smoke:0, zh:"入夜", en:"Nightfall"    },
+  ];
+
+  /* ---- storyboard: 11 shots (Acts 0–10). Evidence chip prefixes each caption. -- *
+   *  Camera dist is box-relative (box normalises to ~2000 units):
+   *    ~2200–2400 = wide aerial establisher · ~900–1000 = mid · ~700–800 = tight.  */
+  const storyboard = [
+    /* 0 — Prologue / Context */
+    { day:11.0, hold:9,
+      cam:{ lng:114.182, lat:22.304, dist:2300, az:0, el:46, orbit:0.6 },
+      dateLabel:"2019年11月", title_zh:"理大圍城 · 序", title_en:"PolyU — Prologue",
+      narration_zh:'<span class="evtag verified">已核實</span> 2019年11月，反修例運動已持續數月。香港理工大學位處紅磡，緊鄰紅磡海底隧道，成為抗議運動最後的大型據點之一。',
+      narration_en:'<span class="evtag verified">VERIFIED</span> In November 2019, months into the protest movement, Hong Kong Polytechnic University — beside the Cross-Harbour Tunnel in Hung Hom — became one of the last major strongholds.',
+      focus:["mediators"], side:"mediators" },
+
+    /* 1 — Occupation begins (11–12 Nov) */
+    { day:11.6, hold:9,
+      cam:{ lng:114.1798, lat:22.3040, dist:920, az:22, el:54, orbit:0.6 },
+      dateLabel:"2019年11月11–12日", title_zh:"佔據校園", title_en:"Occupation begins",
+      narration_zh:'<span class="evtag verified">已核實</span> 示威者佔據理大校園，並封堵毗鄰的紅磡海底隧道過海通道，使過海要道癱瘓。',
+      narration_en:'<span class="evtag verified">VERIFIED</span> Protesters occupy the PolyU campus and block the approach road to the Hung Hom Cross-Harbour Tunnel, shutting the cross-harbour route.',
+      focus:["inside_core","inside_blockade"], side:"inside" },
+
+    /* 2 — Tunnel blockade & first confrontation (13 Nov) */
+    { day:13.0, hold:9,
+      cam:{ lng:114.1790, lat:22.3026, dist:1000, az:-14, el:52, orbit:0.6 },
+      dateLabel:"2019年11月13日", title_zh:"封隧 · 首度對峙", title_en:"Tunnel blockade",
+      narration_zh:'<span class="evtag verified">已核實</span> 抗議者以雜物封堵紅磡海底隧道入口，警方在外圍待命，隧道停止通車。',
+      narration_en:'<span class="evtag verified">VERIFIED</span> Protesters block the Cross-Harbour Tunnel entrance. Police stage outside; the tunnel closes to traffic.',
+      focus:["inside_blockade","police_south"], side:"both" },
+
+    /* 3 — Escalation (14–17 Nov) */
+    { day:15.5, hold:9,
+      cam:{ lng:114.1802, lat:22.3042, dist:820, az:32, el:56, orbit:0.6 },
+      dateLabel:"2019年11月14–17日", title_zh:"衝突升級", title_en:"Escalation",
+      narration_zh:'<span class="evtag approx">約略</span> 校園外圍衝突加劇。11月17日警方包圍理大並嘗試清場；一輛裝甲車一度起火，一名警方傳媒聯絡隊員被箭射中。位置由片段部分重建。',
+      narration_en:'<span class="evtag approx">APPROX.</span> Confrontations intensify around the perimeter. On 17 November police surround PolyU and move to clear it; an armoured vehicle is briefly set alight and a media-liaison officer is struck by an arrow. Positions are partly reconstructed from video.',
+      focus:["inside_perim","police_east","police_armor"], side:"both" },
+
+    /* 4 — Cordon sealed (18 Nov) */
+    { day:18.0, hold:9,
+      cam:{ lng:114.1800, lat:22.3034, dist:1600, az:8, el:60, orbit:0.6 },
+      dateLabel:"2019年11月18日", title_zh:"封鎖出口", title_en:"Cordon sealed",
+      narration_zh:'<span class="evtag verified">已核實</span> 警方宣布理大為「暴動現場」，封鎖所有出口。留在校內者被警告可被控暴動，數以百計人士被困。',
+      narration_en:'<span class="evtag verified">VERIFIED</span> Police declare PolyU a "riot scene" and seal every exit. Those inside are warned they could be charged with rioting; hundreds are trapped.',
+      focus:["police_ring","police_south","inside_core"], side:"both" },
+
+    /* 5 — Escape: rope rappel (18–19 Nov) */
+    { day:18.6, hold:9,
+      cam:{ lng:114.1789, lat:22.3028, dist:720, az:6, el:60, orbit:0.5 },
+      dateLabel:"2019年11月18–19日", title_zh:"吊繩逃離", title_en:"Escape — rope rappel",
+      narration_zh:'<span class="evtag verified">已核實</span> 部分人員從行人天橋以繩索滑下，接駁等候的電單車離開；大多數路線於數小時內被封堵。',
+      narration_en:'<span class="evtag verified">VERIFIED</span> A group rappels down ropes from the footbridge to waiting motorcycles. Most escape routes are sealed within hours.',
+      focus:["inside_escape_rope","police_east"], side:"inside" },
+
+    /* 6 — Escape: sewer & convoy (19 Nov) */
+    { day:19.2, hold:9,
+      cam:{ lng:114.1793, lat:22.3024, dist:820, az:-8, el:52, orbit:0.6 },
+      dateLabel:"2019年11月19日", title_zh:"渠道 · 車隊", title_en:"Escape — drains & convoy",
+      narration_zh:'<span class="evtag approx">約略</span> 有人嘗試經排水渠道與車隊離開，大部分被截獲，少數成功。確切路線僅部分重建。',
+      narration_en:'<span class="evtag approx">APPROX.</span> Further attempts via storm drains and a vehicle convoy — most intercepted, a few successful. Exact routes are only partly reconstructed.',
+      focus:["inside_escape_drain","inside_escape_west","police_south"], side:"both" },
+
+    /* 7 — Standoff: numbers fall (20–24 Nov) */
+    { day:21.0, hold:9,
+      cam:{ lng:114.1799, lat:22.3041, dist:980, az:18, el:54, orbit:0.6 },
+      dateLabel:"2019年11月20–24日", title_zh:"對峙 · 人數下降", title_en:"Standoff",
+      narration_zh:'<span class="evtag approx">約略</span> 校內人數由逾千人跌至約百人，食物及醫療物資漸告短缺；餘下人員向校園中心收縮。',
+      narration_en:'<span class="evtag approx">APPROX.</span> Numbers inside fall from over a thousand to about a hundred as food and medical supplies run low; those remaining consolidate toward the campus core.',
+      focus:["inside_consolidate","inside_core"], side:"inside" },
+
+    /* 8 — Mediation & negotiation (21–26 Nov) */
+    { day:22.0, hold:9,
+      cam:{ lng:114.1796, lat:22.3038, dist:900, az:12, el:54, orbit:0.6 },
+      dateLabel:"2019年11月21–26日", title_zh:"斡旋 · 談判", title_en:"Mediation",
+      narration_zh:'<span class="evtag verified">已核實</span> 中學校長、宗教人士與社工在協商下進入校園斡旋；18歲以下者登記資料後獲准離開，不即時拘捕。',
+      narration_en:'<span class="evtag verified">VERIFIED</span> School principals, clergy, and social workers enter under negotiated access to help broker exits; those under 18 are allowed to leave after their details are recorded, without immediate arrest.',
+      focus:["mediators","inside_core"], side:"mediators" },
+
+    /* 9 — Surrender flow (27–28 Nov) */
+    { day:27.5, hold:9,
+      cam:{ lng:114.1797, lat:22.3037, dist:820, az:26, el:54, orbit:0.6 },
+      dateLabel:"2019年11月27–28日", title_zh:"陸續離開", title_en:"Surrender flow",
+      narration_zh:'<span class="evtag verified">已核實</span> 餘下人員陸續自首或在調停下離開校園，警方於封鎖線出口逐一登記處理。',
+      narration_en:'<span class="evtag verified">VERIFIED</span> Remaining occupants surrender or leave under mediation. Police process each individual at the cordon exit.',
+      focus:["inside_surrender","police_east"], side:"both" },
+
+    /* 10 — Clearance & outro (29 Nov) */
+    { day:29.0, hold:11,
+      cam:{ lng:114.182, lat:22.3035, dist:2300, az:0, el:44, orbit:0.7 },
+      dateLabel:"2019年11月29日", title_zh:"圍城終結", title_en:"End of the Siege",
+      narration_zh:'<span class="evtag verified">已核實</span> 警方進入校園搜索，圍城正式結束。事件中前後約1,300人被捕或自首，校園其後關閉數月。',
+      narration_en:'<span class="evtag verified">VERIFIED</span> Police enter and search the campus; the siege ends. In all, roughly 1,300 people were arrested or surrendered. The campus stayed closed for months.',
+      focus:["police_south","police_east","inside_core"], side:"both" },
+  ];
+
+  /* ---- notes (required; sources non-empty) -------------------------- */
+  const notes = {
+    summary:"理大圍城 2019 — 2019年11月11至29日，香港理工大學被抗議者佔據、遭警方封鎖的紀錄重建。以真實地形與導覽鏡頭呈現據點、封鎖線與逃離路線；持平、註明來源、描述發生了什麼。 · The Siege of PolyU, 11–29 November 2019: a documentary reconstruction of the occupation and police cordon of Hong Kong Polytechnic University, on real terrain with a directed camera — restrained, sourced, describing what happened.",
+    caveats:[
+      "證據標籤 Evidence tags: 已核實 VERIFIED = 多個獨立來源佐證 · 約略 APPROX. = 廣泛報導但確切位置／時序不確定 · 有爭議 CONTESTED = 具爭議或單一來源。",
+      "所有單位位置與路線僅為約略示意重建，非戰術級精確；座標為佔位值。 · All unit positions and routes are approximate illustrative reconstructions, not tactical-level precision.",
+      "中立紀錄，不持立場：無國旗或派系徽章，各方以純色色塊表示，不隱含對任何一方行為的判斷。 · Neutral documentary: no flags or faction emblems; each side is a plain colour swatch; no judgment is implied on any party's conduct.",
+      "衛星影像為近年素材（EOX Sentinel-2 cloudless 2016, CC BY 4.0），地形接近平坦，3D 起伏極微。 · Present-day satellite imagery (EOX Sentinel-2 cloudless 2016, CC BY 4.0); the campus is near-flat, so 3D relief is minimal.",
+      "人數讀數已隱去；標記大小不代表精確兵力。 · Strength readouts are suppressed; marker size does not encode precise numbers.",
+    ],
+    sources:"時序與位置綜合自路透社 Reuters、美聯社 AP、BBC、香港自由新聞 HKFP、南華早報 SCMP（2019年11月）；拘捕數字參考香港警方新聞稿與國際特赦組織報告；學術參考 Yuen, S. & Cheng, E. (2020), 'Hong Kong's Summer of Uprising'。數字與部分細節仍有爭議。 Imagery: Sentinel-2 cloudless 2016 © EOX IT Services GmbH (CC BY 4.0). Elevation: AWS Terrain Tiles / Mapzen Terrarium DEM (SRTM/USGS).",
+  };
+
+  return { meta, factions, intro, outro, flagLegend, geography, units, arrows,
+           hotspots, weather, storyboard, notes };
 })();
